@@ -38,7 +38,7 @@ def rot13_decrypt(enc_text):
             result += cur
     return result
 
-if __name__ == '__main__':
+def main():
     message = "hello 32 world!"
     enc = rot13_encrypt(message)
     dec = rot13_decrypt(enc)
@@ -48,3 +48,6 @@ if __name__ == '__main__':
     print(f"original message is: {message}")
     print(f"encrypted message is: {enc}")
     print(f"decrypted message equal to orignal message, which is: {dec}")
+
+if __name__ == '__main__':
+    main()
