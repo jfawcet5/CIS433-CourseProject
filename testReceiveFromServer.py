@@ -1,6 +1,6 @@
 
 from socket import *
-serverIP = '56.160.235.144'
+serverIP = '54.160.235.144'
 cSock = socket(AF_INET, SOCK_STREAM)
 cSock.connect((serverIP, 12000))
 
