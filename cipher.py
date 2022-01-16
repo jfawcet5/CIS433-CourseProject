@@ -8,7 +8,7 @@ def rot13_encrypt(plaintext):
         cur = plaintext[i]
         if cur != ' ':
             if cur.isalpha() and cur.isupper():
-                cur = cur.lower(cur)
+                cur = cur.lower()
                 pos = rotated_alpha.index(cur)
                 result +=  plain_alpha[pos].upper()
             elif cur.isalpha() and cur.islower():
@@ -26,7 +26,7 @@ def rot13_decrypt(enc_text):
         cur = enc_text[i]
         if cur != ' ':
             if cur.isalpha() and cur.isupper():
-                cur = cur.lower(cur)
+                cur = cur.lower()
                 pos = rotated_alpha.index(cur)
                 result += plain_alpha[pos].upper()
             elif cur.isalpha() and cur.islower():
@@ -39,7 +39,7 @@ def rot13_decrypt(enc_text):
     return result
 
 def main():
-    message = "hello 32 world!"
+    message = "Hello 32 World!"
     enc = rot13_encrypt(message)
     dec = rot13_decrypt(enc)
     
