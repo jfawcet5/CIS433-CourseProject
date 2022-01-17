@@ -1,3 +1,9 @@
+'''
+
+    Sources:
+            Scrollbar implementation: https://blog.teclado.com/tkinter-scrollable-frames/
+'''
+
 from tkinter import *
 from tkinter import ttk
 
@@ -57,8 +63,9 @@ class ChatMenu:
         headerFrame.grid(column=0, row=0, columnspan=3, sticky='NEWS')
         footerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=50)
         footerFrame.grid(column=0, row=6, columnspan=3, sticky='NEWS')
-        centerFrame = ttk.Frame(mainframe, style='chat.TFrame', width=600, height=600)
+        centerFrame = ttk.Frame(mainframe, width=600, height=600)
         centerFrame.grid(column=0, row=1, rowspan=5, columnspan=3, sticky='NEWS')
+        centerFrame.grid_propagate(0)
 
         headerFrame.rowconfigure(0, weight=1)
         headerFrame.columnconfigure(0,weight=1)
@@ -75,12 +82,28 @@ class ChatMenu:
 
         self.text = Text(footerFrame, height=1)
         self.text.grid(row=0,column=0, columnspan=2, sticky="EW", padx=5)
-        Button(footerFrame, text='Send', bg='#434343', fg='white').grid(row=0,column=1, sticky="E", padx="2")
+        Button(footerFrame, text='Send', bg='#434343', fg='white', command=self.sendMessage).grid(row=0,column=1, sticky="E", padx="2")
 
+        canvas = Canvas(centerFrame, width=596, height=634, background='#cfe2f3')
+        canvas.grid(row=0,column=0)
+
+        s = ttk.Scrollbar(centerFrame, orient=VERTICAL, command=canvas.yview)
+        s.grid(row=0, column=0, sticky='NSE')
+
+        messageFrame = ttk.Frame(canvas, style='chat.TFrame')
+        messageFrame.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+
+        canvas.create_window((0,0), window=messageFrame, anchor='nw')
+        canvas.configure(yscrollcommand=s.set)
+
+        self.messageFrame = messageFrame
+        
         self.headerFrame = headerFrame
+        self.centerFrame = centerFrame
 
-        root.bind('<Return>', self.updateText)
-        root.bind('<BackSpace>', self.updateText)
+        root.bind('<Return>', self.sendMessage)
+
+        self.messages = []
 
     def updateText(self, other):
         lines = self.text.get('1.0', 'end-1c').split('\n')
@@ -92,11 +115,36 @@ class ChatMenu:
         self.parent.switchFrame(MainMenu, None)
         return None
 
+    def displayMessages(self):
+        n = len(self.messages)
+        r = 0
+        for i in range(n, 0, -1):
+            j = -1 * i
+            m = self.messages[j]
+            h = (len(m[1]) // 40) + 1
+            t = ttk.Label(self.messageFrame, text=m[1], width=50, wraplength=300)
+            t.grid(row=r,column=m[0], sticky="NSW", pady=4)
+            r += 1
+
+    def sendMessage(self, other=None):
+        message = self.text.get('1.0', 'end-1c')
+        n = len(message)
+        if n < 1:
+            return
+        if message[-1] == '\n':
+            message = message[:-1]
+        self.messages.append((len(self.messages)%2, message))
+        self.displayMessages()
+        self.text.delete('1.0', END)
+        
+
 # Application Interface manager
 class UI:
     def __init__(self, root):
         self.root = root
         root.title("Secure Messenger")
+        root.geometry('600x700')
+        root.resizable(False, False)
 
         root.columnconfigure(0,weight=1)
         root.rowconfigure(0,weight=1)
@@ -116,8 +164,7 @@ class UI:
     def closeApp(self):
         if self.cSock is not None:
             disconnectServer(self.cSock)
-        self.root.destroy()
-            
+        self.root.destroy() 
 
     def switchFrame(self, newFrame, args):
         self.display.destroy()
@@ -126,7 +173,7 @@ class UI:
         return None
 
     def createMainFrame(self):
-        mainframe = ttk.Frame(root, width=600, height=800, style='BG.TFrame')
+        mainframe = ttk.Frame(root, width=600, height=700, style='BG.TFrame')
         mainframe.grid(column=0, row=0, sticky='nwes')
         mainframe.columnconfigure(0, weight=1)
         mainframe.columnconfigure(1, weight=1)
