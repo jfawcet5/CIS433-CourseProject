@@ -52,7 +52,7 @@ class MainMenu:
         self.parent.switchFrame(ChatMenu, chatname)
 
     def gotoNewChatMenu(self):
-        return None
+        self.parent.switchFrame(NewChatMenu, None)
 
 # Chat menu
 class ChatMenu:
@@ -137,6 +137,48 @@ class ChatMenu:
         self.displayMessages()
         self.text.delete('1.0', END)
         
+# New Chat Menu
+class NewChatMenu:
+    def __init__(self, parent, other=None):
+        self.parent = parent
+        mainframe = parent.display
+        headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=100)
+        headerFrame.grid(column=0, row=0, columnspan=3, sticky='NEWS')
+        centerFrame = ttk.Frame(mainframe, style='newchat.TFrame', width=600, height=600)
+        centerFrame.grid(column=0, row=1, rowspan=6, columnspan=3, sticky='NEWS')
+        footerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=50)
+        footerFrame.grid(column=0, row=6, columnspan=1, sticky='NEWS')
+
+        headerFrame.rowconfigure(0, weight=1)
+        headerFrame.columnconfigure(0,weight=1)
+        headerFrame.columnconfigure(1,weight=1)
+        headerFrame.columnconfigure(2,weight=1)
+
+        footerFrame.rowconfigure(0, weight=1)
+        footerFrame.columnconfigure(0,weight=1)
+        footerFrame.columnconfigure(1,weight=1)
+
+        ttk.Label(headerFrame, text='New Chat', background='#434343', foreground='white').grid(row=0,column=1)
+        Button(headerFrame, text='Back', bg='#434343', fg='white', command=self.gotoMainMenu).grid(row=0,column=0, sticky="W", padx="2")
+
+        ttk.Label(centerFrame, text="To:", font=('Arial', 15), background='#525252', foreground='white').grid(row=1, column=1)
+        self.receivertext = Text(centerFrame, height=1)
+        self.receivertext.grid(row=1, column=2, columnspan=2, sticky="EW", padx=5)
+
+        ttk.Label(centerFrame, text="IP Address:", font=('Arial', 15), background='#525252', foreground='white').grid(row=2, column=1)
+        self.IPtext = Text(centerFrame, height=1)
+        self.IPtext.grid(row=2, column=2, columnspan=2, sticky="EW", padx=5)
+
+        self.text = Text(footerFrame, height=1)
+        self.text.grid(row=0,column=0, columnspan=2, sticky="EW", padx=5)
+        Button(footerFrame, text='Send', bg='#434343', fg='white', command=sendMessage).grid(row=0,column=1, sticky="E", padx="2")
+
+    def gotoMainMenu(self):
+        self.parent.switchFrame(MainMenu, None)
+        return None
+    
+    def sendMessage(self):
+        return None
 
 # Application Interface manager
 class UI:
@@ -197,6 +239,9 @@ mainFrameStyle.configure('BG.TFrame', background='#cfe2f3', borderwidth=5, relie
 
 chatBG = ttk.Style()
 chatBG.configure('chat.TFrame', background='#cfe2f3', borderwidth=1, relief='flat')
+
+newchatBG = ttk.Style()
+newchatBG.configure('newchat.TFrame', background='#525252', borderwidth=5, relief='flat')
 
 header = ttk.Style()
 header.configure('header.TFrame', background='#434343', borderwidth=1, relief='flat')
