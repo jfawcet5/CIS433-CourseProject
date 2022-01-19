@@ -8,6 +8,7 @@ from tkinter import *
 from tkinter import ttk
 
 from Client import *
+from testDB_v2 import *
 
 # Main menu
 class MainMenu:
@@ -40,11 +41,13 @@ class MainMenu:
         Button(headerFrame, text='New Chat', bg='#434343', fg='white', command=self.gotoNewChatMenu).grid(row=0,column=0, sticky="W", padx="2")
         Button(headerFrame, text='Settings', bg='#434343', fg='white').grid(row=0,column=2, sticky="E", padx="2")
 
-        Button(centerFrame, text='Chat 1', bg='grey', fg='white', command=lambda cn='Chat 1' : self.gotoChatMenu(cn), anchor='w').grid(row=0,column=0, padx="2", pady='2', sticky="NWES")
-        Button(centerFrame, text='Chat 2', bg='grey', fg='white', command=lambda cn='Chat 2' : self.gotoChatMenu(cn), anchor='w').grid(row=1,column=0, padx="2", pady='2', sticky="NWES")
-        Button(centerFrame, text='Chat 3', bg='grey', fg='white', command=lambda cn='Chat 3' : self.gotoChatMenu(cn), anchor='w').grid(row=2,column=0, padx="2", pady='2', sticky="NWES")
-        Button(centerFrame, text='Chat 4', bg='grey', fg='white', command=lambda cn='Chat 4' : self.gotoChatMenu(cn), anchor='w').grid(row=3,column=0, padx="2", pady='2', sticky="NWES")
-        Button(centerFrame, text='Chat 5', bg='grey', fg='white', command=lambda cn='Chat 5' : self.gotoChatMenu(cn), anchor='w').grid(row=3,column=0, padx="2", pady='2', sticky="NWES")
+        # Get list of chats from database
+        chats = get_chats_list(self.parent.db_cur)
+
+        # Iterate through chats list and create corresponding buttons
+        for i in range(len(chats)):
+            num, IP, name = chats[i]
+            Button(centerFrame, text=name, bg='grey', fg='white', command=lambda cn=name : self.gotoChatMenu(cn), anchor='w').grid(row=i,column=0, padx="2", pady='2', sticky="NWES")
 
         self.headerFrame = headerFrame
 
@@ -103,7 +106,13 @@ class ChatMenu:
 
         root.bind('<Return>', self.sendMessage)
 
-        self.messages = []
+        # Store chat name in tkinter StringVar
+        self.cName = StringVar()
+        self.cName.set(chatname)
+
+        # Initialize messages from database
+        self.messages = get_messages(self.parent.db_cur, chatname, 20)
+        self.displayMessages(chatname)
 
     def updateText(self, other):
         lines = self.text.get('1.0', 'end-1c').split('\n')
@@ -115,26 +124,36 @@ class ChatMenu:
         self.parent.switchFrame(MainMenu, None)
         return None
 
-    def displayMessages(self):
-        n = len(self.messages)
+    def displayMessages(self, chat_name):
+        messageList = self.messages
+        print(messageList)
+        n = len(messageList)
         r = 0
         for i in range(n, 0, -1):
             j = -1 * i
-            m = self.messages[j]
-            h = (len(m[1]) // 40) + 1
-            t = ttk.Label(self.messageFrame, text=m[1], width=50, wraplength=300)
-            t.grid(row=r,column=m[0], sticky="NSW", pady=4)
+            m = messageList[j]
+            h = (len(m[2]) // 40) + 1
+            t = ttk.Label(self.messageFrame, text=m[2], width=50, wraplength=300)
+            t.grid(row=r,column=m[1], sticky="NSW", pady=4)
             r += 1
 
     def sendMessage(self, other=None):
+        # Get text entered by user
         message = self.text.get('1.0', 'end-1c')
         n = len(message)
         if n < 1:
             return
         if message[-1] == '\n':
             message = message[:-1]
-        self.messages.append((len(self.messages)%2, message))
-        self.displayMessages()
+        #TODO: Send message to server through socket here
+
+        # Store the sent message in the database
+        n = add_message(self.parent.db_cur, self.cName.get(), 1, message)
+        # Add message to message 'buffer'
+        self.messages.append((n, 1, message))
+        # Display messages to screen
+        self.displayMessages(self.cName.get())
+        # Delete message from prompt
         self.text.delete('1.0', END)
         
 # New Chat Menu
@@ -193,6 +212,10 @@ class UI:
 
         self.display = self.createMainFrame()
 
+        # Connect to database (store connection object in db_con)
+        # Get database cursor object (stored in db_cur)
+        self.db_cur, self.db_con = connect_database()
+
         self.current_menu = MainMenu(self)
 
         self.cSock = None
@@ -206,6 +229,8 @@ class UI:
     def closeApp(self):
         if self.cSock is not None:
             disconnectServer(self.cSock)
+        self.db_con.commit() # Save changes to database
+        self.db_con.close() # Close database connection
         self.root.destroy() 
 
     def switchFrame(self, newFrame, args):
