@@ -165,7 +165,6 @@ def main():
 
     #add_message(cur, 'Joshua Fawcett', 1, 'Hello World')
     #add_message(cur, 'Hans Prieto', 0, 'Hi Hans')
-
     print_chats(cur)
 
     #print(get_messages(cur, "Hans Prieto", 10))

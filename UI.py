@@ -90,7 +90,7 @@ class ChatMenu:
         canvas = Canvas(centerFrame, width=596, height=634, background='#cfe2f3')
         canvas.grid(row=0,column=0)
 
-        s = ttk.Scrollbar(centerFrame, orient=VERTICAL, command=canvas.yview)
+        s = ttk.Scrollbar(centerFrame, orient=VERTICAL, command=canvas.yview, style='Vertical.TScrollbar')
         s.grid(row=0, column=0, sticky='NSE')
 
         messageFrame = ttk.Frame(canvas, style='chat.TFrame')
@@ -111,7 +111,7 @@ class ChatMenu:
         self.cName.set(chatname)
 
         # Initialize messages from database
-        self.messages = get_messages(self.parent.db_cur, chatname, 20)
+        self.messages = get_messages(self.parent.db_cur, chatname, 40)
         self.displayMessages(chatname)
 
     def updateText(self, other):
@@ -126,15 +126,21 @@ class ChatMenu:
 
     def displayMessages(self, chat_name):
         messageList = self.messages
-        print(messageList)
         n = len(messageList)
+                
         r = 0
         for i in range(n, 0, -1):
             j = -1 * i
             m = messageList[j]
-            h = (len(m[2]) // 40) + 1
-            t = ttk.Label(self.messageFrame, text=m[2], width=50, wraplength=300)
-            t.grid(row=r,column=m[1], sticky="NSW", pady=4)
+            if r == 0 and m[1] == 1:
+                ttk.Label(self.messageFrame, text=' ', width=41, wraplength=300, font=("TkFixedFont", 9), background='#cfe2f3').grid(row=0,column=0, sticky="NSW", pady=4)
+                ttk.Label(self.messageFrame, text=m[2], width=40, font=("TkFixedFont", 9), wraplength=284).grid(row=r,column=m[1], sticky="NSW", pady=4)
+            else:
+                if m[1] == 0:
+                    messageWidth = 41
+                else:
+                    messageWidth = 40
+                ttk.Label(self.messageFrame, text=m[2], width=messageWidth, font=("TkFixedFont", 9), wraplength=284).grid(row=r,column=m[1], sticky="NSW", pady=4)
             r += 1
 
     def sendMessage(self, other=None):
@@ -270,6 +276,10 @@ newchatBG.configure('newchat.TFrame', background='#525252', borderwidth=5, relie
 
 header = ttk.Style()
 header.configure('header.TFrame', background='#434343', borderwidth=1, relief='flat')
+
+test = ttk.Style()
+#test.theme_use('classic')
+test.configure('Vertical.TScrollbar', troughcolor='red', background='green')
 
 u = UI(root)
 root.mainloop()
