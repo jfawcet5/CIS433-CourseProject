@@ -104,7 +104,7 @@ class ChatMenu:
         self.headerFrame = headerFrame
         self.centerFrame = centerFrame
 
-        root.bind('<Return>', self.sendMessage)
+        self.parent.root.bind('<Return>', self.sendMessage)
 
         # Store chat name in tkinter StringVar
         self.cName = StringVar()
@@ -152,6 +152,11 @@ class ChatMenu:
         if message[-1] == '\n':
             message = message[:-1]
         #TODO: Send message to server through socket here
+        ip = get_ip_address(self.parent.db_cur, self.cName.get())
+        success = sendMessageTo(self.parent.cSock, message, ip)
+
+        if not success:
+            return None
 
         # Store the sent message in the database
         n = add_message(self.parent.db_cur, self.cName.get(), 1, message)
@@ -196,13 +201,22 @@ class NewChatMenu:
 
         self.text = Text(footerFrame, height=1)
         self.text.grid(row=0,column=0, columnspan=2, sticky="EW", padx=5)
-        Button(footerFrame, text='Send', bg='#434343', fg='white', command=sendMessage).grid(row=0,column=1, sticky="E", padx="2")
+        Button(footerFrame, text='Send', bg='#434343', fg='white', command=self.sendMessage).grid(row=0,column=1, sticky="E", padx="2")
 
     def gotoMainMenu(self):
         self.parent.switchFrame(MainMenu, None)
         return None
     
     def sendMessage(self):
+        chatName = self.receivertext.get('1.0', 'end-1c')
+        IP = self.IPtext.get('1.0', 'end-1c')
+        success = create_chat(self.parent.db_cur, chatName, IP)
+        if success == 1:
+            print('Invalid Chat Name')
+        elif success == 2:
+            print('Invalid IP Address')
+        elif success == 3:
+            print('Chat Name: \'{}\' already exists'.format(chatName))
         return None
 
 # Application Interface manager
@@ -225,7 +239,14 @@ class UI:
         self.current_menu = MainMenu(self)
 
         self.cSock = None
-        #self.__connectToServer()
+        self.receivingThread = None
+        print('Connecting to server ... ', end="")
+        self.__connectToServer()
+        if self.cSock is None:
+            print('Connection Failed')
+        else:
+            print('Success')
+            self.receivingThread = create_receiving_thread(self.cSock, self.onReceiveMessage)
 
         root.protocol("WM_DELETE_WINDOW", self.closeApp)
 
@@ -233,6 +254,8 @@ class UI:
         return None
 
     def closeApp(self):
+        if self.receivingThread is not None:
+            self.receivingThread.close()
         if self.cSock is not None:
             disconnectServer(self.cSock)
         self.db_con.commit() # Save changes to database
@@ -246,7 +269,7 @@ class UI:
         return None
 
     def createMainFrame(self):
-        mainframe = ttk.Frame(root, width=600, height=700, style='BG.TFrame')
+        mainframe = ttk.Frame(self.root, width=600, height=700, style='BG.TFrame')
         mainframe.grid(column=0, row=0, sticky='nwes')
         mainframe.columnconfigure(0, weight=1)
         mainframe.columnconfigure(1, weight=1)
@@ -260,11 +283,19 @@ class UI:
         mainframe.rowconfigure(6, weight=2)
         return mainframe
 
+    def onReceiveMessage(self, message):
+        ''' Determines how the UI responds to received messages
+
+            This method is invoked by the receiving thread (self.receivingThread), defined
+            in Client.py
+        '''
+        print('Received message: {}'.format(message))
+
     def __connectToServer(self):
-        self.cSock = connectToServer()        
+        self.cSock = connectToServer()
 
 root = Tk()
-
+    
 mainFrameStyle = ttk.Style()
 mainFrameStyle.configure('BG.TFrame', background='#cfe2f3', borderwidth=5, relief='flat')
 

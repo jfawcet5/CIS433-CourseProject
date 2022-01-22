@@ -3,6 +3,18 @@ import sqlite3
 import random
 import string
 
+def is_valid_chatname(chat_name):
+    return chat_name.replace(' ', '').isalnum()
+
+def is_valid_ip(IP):
+    octets = IP.split('.')
+    if len(octets) != 4:
+        return False
+
+    for i in range(4):
+        if not octets[i].isdecimal():
+            return False
+    return True
 
 def connect_database():
     con = sqlite3.connect('testMessageDB.db')
@@ -27,6 +39,10 @@ def init_chats_table(cur):
 
 # Create a new chat
 def create_chat(cur, chat_name, receiverIP):
+    if not is_valid_chatname(chat_name):
+        return 1
+    elif not is_valid_ip(receiverIP):
+        return 2
     cur.execute(''' SELECT *
                     FROM chats
                     WHERE chatName=?
@@ -34,7 +50,7 @@ def create_chat(cur, chat_name, receiverIP):
                 )
 
     if cur.fetchone() != None:
-        return None
+        return 3
     
     cur.execute(''' SELECT *
                     FROM chats
@@ -51,6 +67,7 @@ def create_chat(cur, chat_name, receiverIP):
                 ''', (newv, receiverIP, chat_name))
 
     create_message_table(cur, chat_name)
+    return 0
 
 # Print out the chats table
 def print_chats(cur):
@@ -71,6 +88,15 @@ def get_chats_list(cur):
                 )
     val = cur.fetchall()
     return val
+
+def get_ip_address(cur, chat_name):
+    cur.execute(''' SELECT *
+                    FROM chats
+                    WHERE chatName=?
+                ''', (chat_name,)
+                )
+    val = cur.fetchone()
+    return val[1]
 
 def create_message_table(cur, chat_name):
     #name = f'chat{chat_num}'
@@ -103,7 +129,7 @@ def get_messages(cur, chat_name, numMessages):
         return val
 
 def add_message(cur, chat_name, sender, message):
-    print(f'adding to {chat_name}')
+    print(f'Adding message to table: {chat_name}')
     command = f''' SELECT *
                     FROM "{chat_name}"
                     ORDER BY messageNum DESC
@@ -138,16 +164,6 @@ def get_random_uname():
         s += random.choice(letters)
     return s
 
-# Finds a row in the table with specified uid value
-def get_id(uid):
-    cur.execute('SELECT * FROM users WHERE uid=?', (uid,))
-    print(cur.fetchone())
-
-# Finds a row in the table with specified uip value
-def get_ip(uip):
-    cur.execute('SELECT * FROM users WHERE uip=?', (uip,))
-    print(cur.fetchone())
-
 def main():
     # Connect to (or create) a database with name 'testDB.db'
     con = sqlite3.connect('testMessageDB.db')
@@ -165,6 +181,7 @@ def main():
 
     #add_message(cur, 'Joshua Fawcett', 1, 'Hello World')
     #add_message(cur, 'Hans Prieto', 0, 'Hi Hans')
+
     print_chats(cur)
 
     #print(get_messages(cur, "Hans Prieto", 10))
