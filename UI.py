@@ -81,7 +81,7 @@ class ChatMenu:
 
         ttk.Label(headerFrame, text=chatname, background='#434343', foreground='white').grid(row=0,column=1)
         Button(headerFrame, text='Back', bg='#434343', fg='white', command=self.gotoMainMenu).grid(row=0,column=0, sticky="W", padx="2")
-        Button(headerFrame, text='Settings', bg='#434343', fg='white').grid(row=0,column=2, sticky="E", padx="2")
+        Button(headerFrame, text='Settings', bg='#434343', fg='white', command=self.gotoSettingsMenu).grid(row=0,column=2, sticky="E", padx="2")
 
         self.text = Text(footerFrame, height=1)
         self.text.grid(row=0,column=0, columnspan=2, sticky="EW", padx=5)
@@ -167,6 +167,10 @@ class ChatMenu:
         # Delete message from prompt
         self.text.delete('1.0', END)
         
+    def gotoSettingsMenu(self):
+        self.parent.switchFrame(SettingsMenu, self.cName.get())
+        return None
+
 # New Chat Menu
 class NewChatMenu:
     def __init__(self, parent, other=None):
@@ -217,6 +221,39 @@ class NewChatMenu:
             print('Invalid IP Address')
         elif success == 3:
             print('Chat Name: \'{}\' already exists'.format(chatName))
+        return None
+
+# Settings Menu
+class SettingsMenu:
+    def __init__(self, parent, chatname):
+        self.parent = parent
+        self.chatname = chatname
+        mainframe = parent.display
+        headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=100)
+        headerFrame.grid(column=0, row=0, columnspan=3, sticky='NEWS')
+        centerFrame = ttk.Frame(mainframe, style='settings.TFrame', width=600, height=200)
+        centerFrame.grid(column=0, row=1, rowspan=6, columnspan=3, sticky='NEWS')
+
+        headerFrame.rowconfigure(0, weight=1)
+        headerFrame.columnconfigure(0,weight=1)
+        headerFrame.columnconfigure(1,weight=1)
+        headerFrame.columnconfigure(2,weight=1)
+
+        ttk.Label(headerFrame, text=f"Settings for '{self.chatname}'", background='#434343', foreground='white').grid(row=0,column=1)
+        Button(headerFrame, text='Back', bg='#434343', fg='white', command=lambda cn=self.chatname : self.gobacktochat(cn)).grid(row=0,column=0, sticky="W", padx="2")
+
+        ttk.Label(centerFrame, text="Rename to:", font=('Arial', 15), background='#cfe2f3', foreground='black').grid(row=1, column=1)
+        self.renamedChat = Text(centerFrame, height=1)
+        self.renamedChat.grid(row=1, column=2, columnspan=2, sticky="EW", padx=5)
+
+        ttk.Label(centerFrame, text="Edit IP Address:", font=('Arial', 15), background='#cfe2f3', foreground='black').grid(row=2, column=1)
+        self.changedIP = Text(centerFrame, height=1)
+        self.changedIP.grid(row=2, column=2, columnspan=2, sticky="EW", padx=5)
+
+        Button(centerFrame, text='Delete Chat', height=3, width=20, bg='red', fg='white', command=None).grid(row=3,column=1, sticky="W", padx="2")
+
+    def gobacktochat(self, chatname):
+        self.parent.switchFrame(ChatMenu, chatname)
         return None
 
 # Application Interface manager
@@ -301,6 +338,9 @@ mainFrameStyle.configure('BG.TFrame', background='#cfe2f3', borderwidth=5, relie
 
 chatBG = ttk.Style()
 chatBG.configure('chat.TFrame', background='#cfe2f3', borderwidth=1, relief='flat')
+
+settingsBG = ttk.Style()
+settingsBG.configure('settings.TFrame', background='#cfe2f3', borderwidth=5, relief='flat')
 
 newchatBG = ttk.Style()
 newchatBG.configure('newchat.TFrame', background='#525252', borderwidth=5, relief='flat')
