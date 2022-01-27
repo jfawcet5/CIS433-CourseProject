@@ -69,11 +69,11 @@ def connectToServer():
 def unPack(message):
     return message.split('\r\n')
 
-def sendMessageTo(soc, message, destination):
-    if soc is None:
-        return False
+def sendMessageTo(message, destination):
     # Create Packet
     packet = f'None\r\n{destination}\r\n{message}'
+
+    soc = connectToServer()
 
     # Encrypt packet
 
@@ -82,19 +82,22 @@ def sendMessageTo(soc, message, destination):
     try:
         soc.send(packet.encode())
         ACK = soc.recv(4096).decode()
+        disconnectServer(soc)
         if ACK == '0':
             return True
         else:
             return False
     except Exception:
         print('Failed to send message')
+        disconnectServer(soc)
         return False
-    return True
 
 def disconnectServer(soc):
-    soc.send("0\r\nNone\r\nNone".encode())
-    time.sleep(0.5)
-    soc.close()
+    try:
+        soc.send("0\r\nNone\r\nNone".encode())
+        time.sleep(0.5)
+        soc.close()
+    return None
 
 def main():
     print('Connecting to server... ', end="")

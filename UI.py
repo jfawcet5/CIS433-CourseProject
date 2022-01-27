@@ -113,9 +113,7 @@ class ChatMenu:
         self.cName.set(chatname)
 
         # Initialize messages from database
-        db = self.parent.db
-        self.messages = db.get_n_messages(chatname, 40)
-        self.displayMessages(chatname)
+        self.displayMessages()
 
     def updateText(self, other):
         lines = self.text.get('1.0', 'end-1c').split('\n')
@@ -127,7 +125,9 @@ class ChatMenu:
         self.parent.switchFrame(MainMenu, None)
         return None
 
-    def displayMessages(self, chat_name):
+    def displayMessages(self):
+        db = self.parent.db
+        self.messages = db.get_n_messages(self.cName.get(), 40)
         messageList = self.messages
         n = len(messageList)
                 
@@ -157,7 +157,7 @@ class ChatMenu:
         #TODO: Send message to server through socket here
         db = self.parent.db
         ip = db.get_ip_by_chatname(self.cName.get())
-        success = sendMessageTo(self.parent.cSock, message, ip)
+        success = sendMessageTo(message, ip)
 
         if not success:
             self.text.delete('1.0', END)
@@ -169,7 +169,7 @@ class ChatMenu:
         # Add message to message 'buffer'
         self.messages.append((n, 1, message))
         # Display messages to screen
-        self.displayMessages(self.cName.get())
+        self.displayMessages()
         # Delete message from prompt
         self.text.delete('1.0', END)
         
@@ -265,6 +265,7 @@ class SettingsMenu:
         self.parent.switchFrame(ChatMenu, chatname)
         return None
 
+# Received Message pop up menu
 class ReceivedMessagePopUp:
     def __init__(self, parent, position, args=None):
         self.parent = parent
@@ -306,6 +307,7 @@ class ReceivedMessagePopUp:
 
     def createChat(self):
         db = self.parent.db
+        print(f'Creating Chat: {self.cName.get()}, IP: {self.args[0]}')
         db.create_chat(self.cName.get(), self.args[0])
         db.store_received_message(self.cName.get(), self.args[1])
         if type(self.parent.current_menu) == MainMenu:
@@ -412,9 +414,10 @@ class UI:
             # Add message to chat
             print("chat exists")
             self.db.store_received_message(chat[2], messageFields[1])
-            pass
+            if type(self.current_menu) == ChatMenu:
+                self.current_menu.displayMessages()
         else:
-            print("new chat")
+            print("chat does not exist")
             # Create popup
             self.createPopUp(ReceivedMessagePopUp, messageFields)
 
