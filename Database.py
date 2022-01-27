@@ -3,8 +3,41 @@ import sqlite3
 import random
 import string
 
+class DataBase:
+    def __init__(self):
+        con, cur = connect_database()
+        self.connection = con
+        self.cursor = cur
+
+    def store_sent_message(self, chat_name, message):
+        return add_message(self.cursor, chat_name, 1, message)
+
+    def store_received_message(self, chat_name, message):
+        return add_message(self.cursor, chat_name, 0, message)
+
+    def get_chats_list(self):
+        return get_chats_list(self.cursor)
+
+    def get_n_messages(self, chat_name, n):
+        return get_messages(self.cursor, chat_name, n)
+
+    def create_chat(self, chat_name, IP):
+        return create_chat(self.cursor, chat_name, IP)
+
+    def get_chat_by_ip(self, IP):
+        return get_chat_by_ip(self.cursor, IP)
+
+    def get_ip_by_chatname(self, chat_name):
+        return get_ip_address(self.cursor, chat_name)
+
+    def disconnect(self):
+        self.connection.commit()
+        self.connection.close()
+        return None
+
+
 def is_valid_chatname(chat_name):
-    return chat_name.replace(' ', '').isalnum()
+    return chat_name.replace(' ', '').replace('.','').isalnum()
 
 def is_valid_ip(IP):
     octets = IP.split('.')
@@ -20,7 +53,7 @@ def connect_database():
     con = sqlite3.connect('testMessageDB.db')
     cur = con.cursor()
     init_chats_table(cur)
-    return cur, con
+    return con, cur
     
 def init_chats_table(cur):
     # Check if table 'chats' already exists
@@ -36,6 +69,15 @@ def init_chats_table(cur):
         cur.execute(command)
     else:
         print(f"Table: chats exists")
+
+def get_chat_by_ip(cur, IP):
+    cur.execute(''' SELECT *
+                    FROM chats
+                    WHERE receiverIP=?
+                ''', (IP,)
+                )
+
+    return cur.fetchone()
 
 # Create a new chat
 def create_chat(cur, chat_name, receiverIP):
@@ -130,6 +172,15 @@ def get_messages(cur, chat_name, numMessages):
 
 def add_message(cur, chat_name, sender, message):
     print(f'Adding message to table: {chat_name}')
+    cur.execute(''' SELECT *
+                    FROM chats
+                    WHERE chatName=?
+                ''', (chat_name,)
+                )
+
+    if cur.fetchone() == None:
+        print(f'chat: {chat_name} does not exist')
+        return False
     command = f''' SELECT *
                     FROM "{chat_name}"
                     ORDER BY messageNum DESC

@@ -6,9 +6,10 @@
 
 from tkinter import *
 from tkinter import ttk
+from tkinter import messagebox
 
 from Client import *
-from testDB_v2 import *
+from Database import DataBase
 
 # Main menu
 class MainMenu:
@@ -42,7 +43,8 @@ class MainMenu:
         Button(headerFrame, text='Settings', bg='#434343', fg='white').grid(row=0,column=2, sticky="E", padx="2")
 
         # Get list of chats from database
-        chats = get_chats_list(self.parent.db_cur)
+        db = self.parent.db
+        chats = db.get_chats_list()
 
         # Iterate through chats list and create corresponding buttons
         for i in range(len(chats)):
@@ -111,7 +113,8 @@ class ChatMenu:
         self.cName.set(chatname)
 
         # Initialize messages from database
-        self.messages = get_messages(self.parent.db_cur, chatname, 40)
+        db = self.parent.db
+        self.messages = db.get_n_messages(chatname, 40)
         self.displayMessages(chatname)
 
     def updateText(self, other):
@@ -152,14 +155,17 @@ class ChatMenu:
         if message[-1] == '\n':
             message = message[:-1]
         #TODO: Send message to server through socket here
-        ip = get_ip_address(self.parent.db_cur, self.cName.get())
+        db = self.parent.db
+        ip = db.get_ip_by_chatname(self.cName.get())
         success = sendMessageTo(self.parent.cSock, message, ip)
 
         if not success:
+            self.text.delete('1.0', END)
+            self.text.insert('end-1c', message)
             return None
 
         # Store the sent message in the database
-        n = add_message(self.parent.db_cur, self.cName.get(), 1, message)
+        n = db.store_sent_message(self.cName.get(), message)
         # Add message to message 'buffer'
         self.messages.append((n, 1, message))
         # Display messages to screen
@@ -214,7 +220,10 @@ class NewChatMenu:
     def sendMessage(self):
         chatName = self.receivertext.get('1.0', 'end-1c')
         IP = self.IPtext.get('1.0', 'end-1c')
-        success = create_chat(self.parent.db_cur, chatName, IP)
+
+        # Store new chat in the database
+        db = self.parent.db
+        success = db.create_chat(chatName, IP)
         if success == 1:
             print('Invalid Chat Name')
         elif success == 2:
@@ -256,6 +265,61 @@ class SettingsMenu:
         self.parent.switchFrame(ChatMenu, chatname)
         return None
 
+class ReceivedMessagePopUp:
+    def __init__(self, parent, position, args=None):
+        self.parent = parent
+        self.args = args
+
+        self.popUp = Toplevel(self.parent.root)
+        self.popUp.geometry(position)
+
+        self.mainframe = None
+        self.popUp.transient(self.parent.root)
+        self.popUp.protocol("WM_DELETE_WINDOW", self.closePopUp)
+
+        self.gotoMainPopUp()
+
+    def gotoMainPopUp(self):
+        if self.mainframe is not None:
+            self.mainframe.destroy()
+        self.mainframe = ttk.Frame(self.popUp, style='BG.TFrame')
+        self.mainframe.grid()
+        Label(self.mainframe, text='Received message from: {}'.format(self.args[0]), background='#434343', foreground='white').grid(row=0, column=1)
+        Button(self.mainframe, text='Create Chat', command=self.gotoCreateChat).grid(row=1, column=0)
+        Button(self.mainframe, text='Ignore', command=self.closePopUp).grid(row=1, column=1)
+        Button(self.mainframe, text='Block IP', command=self.blockIP).grid(row=1, column=2)
+
+    def gotoCreateChat(self):
+        self.mainframe.destroy()
+        self.mainframe = ttk.Frame(self.popUp, style='BG.TFrame')
+        self.mainframe.grid()
+
+        Label(self.mainframe, text='Chat name: ', background='#434343', foreground='white').grid(row=1, column=0)
+
+        self.cName = StringVar()
+        name = ttk.Entry(self.mainframe, textvariable=self.cName)
+        name.grid(row=1, column=1, columnspan=2)
+        name.insert(0, self.args[0])
+
+        Button(self.mainframe, text='Create', command=self.createChat).grid(row=1, column=3)
+        Button(self.mainframe, text='Back', command=self.gotoMainPopUp).grid(row=0, column=0, sticky='w')
+
+    def createChat(self):
+        db = self.parent.db
+        db.create_chat(self.cName.get(), self.args[0])
+        db.store_received_message(self.cName.get(), self.args[1])
+        if type(self.parent.current_menu) == MainMenu:
+            self.parent.switchFrame(MainMenu, None)
+        self.closePopUp()
+
+    def blockIP(self):
+        self.closePopUp()
+
+    def closePopUp(self):
+        self.parent.closePopUp()
+        self.popUp.destroy()
+        
+
 # Application Interface manager
 class UI:
     def __init__(self, root):
@@ -269,11 +333,10 @@ class UI:
 
         self.display = self.createMainFrame()
 
-        # Connect to database (store connection object in db_con)
-        # Get database cursor object (stored in db_cur)
-        self.db_cur, self.db_con = connect_database()
+        # Connect to database 
+        self.db = DataBase()
 
-        self.current_menu = MainMenu(self)
+        self.current_menu = MainMenu(self) # Create and display main menu
 
         self.cSock = None
         self.receivingThread = None
@@ -287,6 +350,12 @@ class UI:
 
         root.protocol("WM_DELETE_WINDOW", self.closeApp)
 
+        self.popUpMenu = None
+
+        self.buffer = []
+
+        self.update_UI()
+
     def openMainMenu(self):
         return None
 
@@ -295,13 +364,13 @@ class UI:
             self.receivingThread.close()
         if self.cSock is not None:
             disconnectServer(self.cSock)
-        self.db_con.commit() # Save changes to database
-        self.db_con.close() # Close database connection
+        self.db.disconnect()
         self.root.destroy() 
 
     def switchFrame(self, newFrame, args):
         self.display.destroy()
         self.display = self.createMainFrame()
+        self.update_UI()
         self.current_menu = newFrame(self, args)
         return None
 
@@ -326,7 +395,44 @@ class UI:
             This method is invoked by the receiving thread (self.receivingThread), defined
             in Client.py
         '''
-        print('Received message: {}'.format(message))
+        print('received message')
+        self.buffer.append(message)
+
+    def handleMessage(self, message):
+        ''' Determines how the UI responds to received messages
+
+            This method is invoked by the receiving thread (self.receivingThread), defined
+            in Client.py
+        '''
+        messageFields = unPack(message)
+        IP = messageFields[0]
+        chat = self.db.get_chat_by_ip(IP)
+        print(chat)
+        if chat is not None:
+            # Add message to chat
+            print("chat exists")
+            self.db.store_received_message(chat[2], messageFields[1])
+            pass
+        else:
+            print("new chat")
+            # Create popup
+            self.createPopUp(ReceivedMessagePopUp, messageFields)
+
+    def update_UI(self):
+        if len(self.buffer) != 0 and self.popUpMenu is None:
+            message = self.buffer.pop()
+            self.handleMessage(message)
+        self.display.after(1000, self.update_UI)
+        return None
+
+    def createPopUp(self, popUpClass, message):
+        print('create popup')
+        position = self.root.geometry()[7:]
+        self.popUpMenu = popUpClass(self, position, message)
+        return None
+
+    def closePopUp(self):
+        self.popUpMenu = None
 
     def __connectToServer(self):
         self.cSock = connectToServer()

@@ -3,7 +3,7 @@ from threading import Thread
 import time
 import traceback
 
-serverName = "54.90.254.151"
+serverName = "54.89.160.79"
 serverPort = 12000
 
 class RThreadStatus:
@@ -21,7 +21,7 @@ class ReceivingThread:
 
 def receiving_thread(conn, bufferSize, status, rCallback=None):
     print('Receiving Thread running')
-    conn.settimeout(3)
+    conn.settimeout(2)
     while not status.terminate:
         try:
             message = conn.recv(bufferSize)
@@ -65,6 +65,9 @@ def connectToServer():
     clientSocket.send(self_ip.encode())
 
     return clientSocket
+
+def unPack(message):
+    return message.split('\r\n')
 
 def sendMessageTo(soc, message, destination):
     if soc is None:
