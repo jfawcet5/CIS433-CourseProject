@@ -97,6 +97,8 @@ def disconnectServer(soc):
         soc.send("0\r\nNone\r\nNone".encode())
         time.sleep(0.5)
         soc.close()
+    except:
+        pass
     return None
 
 def main():
