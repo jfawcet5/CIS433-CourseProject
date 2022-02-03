@@ -24,6 +24,9 @@ class DataBase:
     def create_chat(self, chat_name, IP):
         return create_chat(self.cursor, chat_name, IP)
 
+    def delete_chat(self, chat_name):
+        return delete_chat(self.cursor, chat_name)
+    
     def get_chat_by_ip(self, IP):
         return get_chat_by_ip(self.cursor, IP)
 
@@ -110,6 +113,26 @@ def create_chat(cur, chat_name, receiverIP):
 
     create_message_table(cur, chat_name)
     return 0
+
+# deletes a chat
+def delete_chat(cur, chat_name):
+    cur.execute('''SELECT count(name) FROM sqlite_master WHERE type='table'
+                   AND name=?
+                ''', (chat_name,))
+    if cur.fetchone()[0] != 0:
+        print(f"Deleting table {chat_name}")
+        command = f'''DROP TABLE "{chat_name}"'''
+        cur.execute(command)
+    else:
+        print(f"Table {chat_name} does not exist")
+        return 0
+
+    cur.execute(''' DELETE 
+                    FROM chats
+                    WHERE chatName=?
+                ''', (chat_name,)
+                )
+    return 1
 
 # Print out the chats table
 def print_chats(cur):
@@ -221,19 +244,32 @@ def main():
 
     # Get cursor object. Used to execute SQL statements
     cur = con.cursor()
-
+    
     init_chats_table(cur)
-
-    create_chat(cur, 'Chat 1', get_random_ip())
-    create_chat(cur, 'Joshua Fawcett', get_random_ip())
-    create_chat(cur, 'Hans Prieto', get_random_ip())
-    create_chat(cur, 'The boys', get_random_ip())
-    create_chat(cur, 'Chat 5', get_random_ip())
+    
+    #create_chat(cur, 'Chat 1', get_random_ip())
+    #create_chat(cur, 'Joshua Fawcett', get_random_ip())
+    #create_chat(cur, 'Hans Prieto', get_random_ip())
+    #create_chat(cur, 'The boys', get_random_ip())
+    #create_chat(cur, 'Chat 5', get_random_ip())
 
     #add_message(cur, 'Joshua Fawcett', 1, 'Hello World')
     #add_message(cur, 'Hans Prieto', 0, 'Hi Hans')
-
+    
     print_chats(cur)
+    while True:
+        command =  input("Enter d to delete chat, c to create chat, and 'exit' to exit loop: ")
+        if command == "c":
+            name = input("Enter chat name you would like to create: ")
+            ip = input("Enter ip address: ")
+            create_chat(cur, name, ip)
+            print_chats(cur)
+        elif command == "d":
+            chat_to_delete = input("Enter chat name you would like to delete: ")
+            delete_chat(cur, chat_to_delete)
+            print_chats(cur)
+        else:
+            break
 
     #print(get_messages(cur, "Hans Prieto", 10))
 

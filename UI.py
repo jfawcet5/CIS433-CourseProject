@@ -259,11 +259,26 @@ class SettingsMenu:
         self.changedIP = Text(centerFrame, height=1)
         self.changedIP.grid(row=2, column=2, columnspan=2, sticky="EW", padx=5)
 
-        Button(centerFrame, text='Delete Chat', height=3, width=20, bg='red', fg='white', command=None).grid(row=3,column=1, sticky="W", padx="2")
+        Button(centerFrame, text='Delete Chat', height=3, width=20, bg='red', fg='white', command=lambda cn=self.chatname : self.deleteCurrentChat(cn)).grid(row=3,column=1, sticky="W", padx="2")
+
+    def deleteCurrentChat(self, chatname):
+        db = self.parent.db
+        success = db.delete_chat(chatname)
+        if success == 0:
+            print(f"Unsuccessful deletion of chat '{chatname}'. Chat does not exist")
+        else:
+            print(f"Succuessful deletion of chat '{chatname}'")
+            self.gotoMainMenu()
+        return None
 
     def gobacktochat(self, chatname):
         self.parent.switchFrame(ChatMenu, chatname)
         return None
+
+    def gotoMainMenu(self):
+        self.parent.switchFrame(MainMenu, None)
+        return None
+
 
 # Received Message pop up menu
 class ReceivedMessagePopUp:

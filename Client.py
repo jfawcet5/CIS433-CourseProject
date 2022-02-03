@@ -3,7 +3,7 @@ from threading import Thread
 import time
 import traceback
 
-serverName = "54.89.160.79"
+serverName = "54.144.253.235"
 serverPort = 12000
 
 class RThreadStatus:
