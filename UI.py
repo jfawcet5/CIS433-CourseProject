@@ -86,15 +86,18 @@ class ChatMenu:
         footerFrame.columnconfigure(0,weight=1)
         footerFrame.columnconfigure(1,weight=1)
 
+        # Display chat header with: chat name, back button, and chat settings button
         ttk.Label(headerFrame, text=chatname, background='#434343', foreground='white').grid(row=0,column=1)
         Button(headerFrame, text='Back', bg='#434343', fg='white', command=self.gotoMainMenu).grid(row=0,column=0, sticky="W", padx="2")
         Button(headerFrame, text='Settings', bg='#434343', fg='white', command=self.gotoSettingsMenu).grid(row=0,column=2, sticky="E", padx="2")
 
+        # Display text entry field at bottom for user to enter messages
         self.text = Text(footerFrame, height=1)
         self.text.grid(row=0,column=0, columnspan=2, sticky="EW", padx=5)
         Button(footerFrame, text='Send', bg='#434343', fg='white', command=self.sendMessage).grid(row=0,column=1, sticky="E", padx="2")
 
-        canvas = Canvas(centerFrame, width=596, height=634, background='#cfe2f3')
+        # Display messages in center of screen
+        canvas = Canvas(centerFrame, width=596, height=616, background='#cfe2f3')
         canvas.grid(row=0,column=0)
 
         s = ttk.Scrollbar(centerFrame, orient=VERTICAL, command=canvas.yview, style='Vertical.TScrollbar')
@@ -106,11 +109,14 @@ class ChatMenu:
         canvas.create_window((0,0), window=messageFrame, anchor='nw')
         canvas.configure(yscrollcommand=s.set)
 
+        self.canvas = canvas
+
         self.messageFrame = messageFrame
         
         self.headerFrame = headerFrame
         self.centerFrame = centerFrame
 
+        # Bind <return> button with sendmessage function
         self.parent.root.bind('<Return>', self.sendMessage)
 
         # Store chat name in tkinter StringVar
@@ -150,6 +156,9 @@ class ChatMenu:
                     messageWidth = 40
                 ttk.Label(self.messageFrame, text=m[2], width=messageWidth, font=("TkFixedFont", 9), wraplength=284).grid(row=r,column=m[1], sticky="NSW", pady=4)
             r += 1
+            
+        self.canvas.update()
+        self.canvas.yview_moveto('1.0')
 
     def sendMessage(self, other=None):
         # Get text entered by user
@@ -394,10 +403,27 @@ class ReceivedMessagePopUp:
             self.mainframe.destroy()
         self.mainframe = ttk.Frame(self.popUp, style='BG.TFrame')
         self.mainframe.grid()
-        Label(self.mainframe, text='Received message from: {}'.format(self.args[2]), background='#434343', foreground='white').grid(row=0, column=1)
-        Button(self.mainframe, text='Create Chat', command=self.gotoCreateChat).grid(row=1, column=0)
-        Button(self.mainframe, text='Ignore', command=self.closePopUp).grid(row=1, column=1)
-        Button(self.mainframe, text='Block IP', command=self.blockIP).grid(row=1, column=2)
+
+        # Display 'New Message' header
+        Label(self.mainframe, text='New Message', background='#cfe2f3', foreground='black', font=('Arial', 18)).grid(row=0, column=1)
+
+        # Display new message info (sender name, message preview)
+        headerFrame = ttk.Frame(self.mainframe, style='chat.TFrame')
+        headerFrame.grid(row=1, column=0, columnspan = 3, sticky="W")
+        Label(headerFrame, text='From:', background='#cfe2f3', foreground='black').grid(row=0, column=0, sticky="W")
+        Label(headerFrame, text='{}'.format(self.args[2]), background='#cfe2f3', foreground='black').grid(row=0, column=1, sticky="W")
+        previewText = self.args[1]
+        if len(previewText) > 38:
+            previewText = previewText[:38] + '...'
+        else:
+            previewText = previewText[:38]
+        Label(headerFrame, text='Preview:', background='#cfe2f3', foreground='grey').grid(row=1, column=0, sticky="W")
+        Label(headerFrame, text=previewText, background='#cfe2f3', foreground='grey').grid(row=1, column=1, sticky="W")
+
+        # Display action buttons (Create a new chat, ignore the message, block sender IP address)
+        Button(self.mainframe, text='Create Chat', command=self.gotoCreateChat).grid(row=2, column=0)
+        Button(self.mainframe, text='Ignore', command=self.closePopUp).grid(row=2, column=1)
+        Button(self.mainframe, text='Block IP', command=self.blockIP).grid(row=2, column=2)
 
     def gotoCreateChat(self):
         self.mainframe.destroy()
@@ -438,6 +464,7 @@ class UI:
         root.title("Secure Messenger")
         root.geometry('600x700')
         root.resizable(False, False)
+        root.option_add( "*font", "Arial 14" )
 
         root.columnconfigure(0,weight=1)
         root.rowconfigure(0,weight=1)
@@ -518,7 +545,7 @@ class UI:
             print("chat does not exist")
             # Create popup
             doPopup = self.client.getPreference('popups')
-            if doPopup:
+            if doPopup == 'True':
                 self.createPopUp(ReceivedMessagePopUp, messageFields)
 
     def update_UI(self):

@@ -27,7 +27,7 @@ class Client:
 
     def readMessage(self, message):
         # decrypt message and split header data from message
-        return unPack(message)
+        return message
 
     def getUserName(self):
         return self.profile['uName']
@@ -125,7 +125,6 @@ def read_user_profile():
         f.seek(0)
         try:
             data = json.load(f) # load json object 
-            print(data)
         except Exception: # If json object doesn't exist
             data = create_profile(f) # Create json object
 
