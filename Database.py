@@ -53,7 +53,7 @@ def is_valid_ip(IP):
     return True
 
 def connect_database():
-    con = sqlite3.connect('testMessageDB.db')
+    con = sqlite3.connect('data/MessageDB.db')
     cur = con.cursor()
     init_chats_table(cur)
     return con, cur
