@@ -266,8 +266,11 @@ class SettingsMenu:
         headerFrame.columnconfigure(0,weight=1)
         headerFrame.columnconfigure(1,weight=1)
         headerFrame.columnconfigure(2,weight=1)
+        
+        db = self.parent.db
+        cur_IP = db.get_ip_by_chatname(chatname)
 
-        ttk.Label(headerFrame, text=f"Settings for '{self.chatname}'", background='#434343', foreground='white').grid(row=0,column=1)
+        ttk.Label(headerFrame, text=f"Settings for '{self.chatname}'\n(IP: {cur_IP})", background='#434343', foreground='white').grid(row=0,column=1)
         Button(headerFrame, text='Back', bg='#434343', fg='white', command=lambda cn=self.chatname : self.gobacktochat(cn)).grid(row=0,column=0, sticky="W", padx="2")
 
         ttk.Label(centerFrame, text="Rename to:", font=('Arial', 15), background='#cfe2f3', foreground='black').grid(row=1, column=1)
