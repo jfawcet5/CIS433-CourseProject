@@ -279,6 +279,7 @@ class SettingsMenu:
         self.changedIP.grid(row=2, column=2, columnspan=2, sticky="EW", padx=5)
 
         Button(centerFrame, text='Delete Chat', height=3, width=20, bg='red', fg='white', command=lambda cn=self.chatname : self.deleteCurrentChat(cn)).grid(row=3,column=1, sticky="W", padx="2")
+        Button(centerFrame, text='Update Settings', height=3, width=20, bg='green', fg='white', command=self.updateSettings).grid(row=3,column=2, sticky="W", padx="2")
 
     def deleteCurrentChat(self, chatname):
         db = self.parent.db
@@ -288,6 +289,44 @@ class SettingsMenu:
         else:
             print(f"Succuessful deletion of chat '{chatname}'")
             self.gotoMainMenu()
+        return None
+
+    def updateSettings(self):
+        cur_chatname = self.chatname
+        new_chatname = self.renamedChat.get('1.0', 'end-1c')
+        new_IP = self.changedIP.get('1.0', 'end-1c')
+
+        db = self.parent.db
+        cur_IP = db.get_ip_by_chatname(cur_chatname)
+
+        # Changes IP Address
+        if len(new_IP) > 0:
+            update_IP_success = db.update_ip(cur_chatname, new_IP)
+            if update_IP_success == 1:
+                print(f"Invalid chatname: '{cur_chatname}'")
+            elif update_IP_success == 2:
+                print(f"Invalid IP Address: {new_IP}")
+            elif update_IP_success == 3:
+                print(f"The chat you are trying to change the IP Address for, which is '{cur_chatname}', does not exist")
+            else:
+                print(f"Changed IP Address from {cur_IP} to {new_IP} successfully")
+
+        # Renames Chat
+        if len(new_chatname) > 0:
+            rename_chat_success = db.update_chatname(cur_chatname, new_chatname)
+            if rename_chat_success == 1:
+                print(f"Invalid chatname: '{new_chatname}'")
+            elif rename_chat_success == 2:
+                print(f"The chat you are trying to rename, which is '{cur_chatname}', does not exist")
+            elif rename_chat_success == 3:
+                print(f"chat '{new_chatname}' already exists")
+            elif rename_chat_success == 4:
+                print(f"Table '{cur_chatname}' does not exist")
+            else:
+                print(f"Renamed '{cur_chatname}' to '{new_chatname}' successfully")
+        
+        # Go back to the main menu after settings have been updated
+        self.gotoMainMenu()
         return None
 
     def gobacktochat(self, chatname):

@@ -27,6 +27,12 @@ class DataBase:
     def delete_chat(self, chat_name):
         return delete_chat(self.cursor, chat_name)
     
+    def update_chatname(self, cur_chat_name, new_chat_name):
+        return rename_chat(self.cursor, cur_chat_name, new_chat_name)
+
+    def update_ip(self, cur_chat_name, new_IP):
+        return change_ip_address(self.cursor, cur_chat_name, new_IP)
+
     def get_chat_by_ip(self, IP):
         return get_chat_by_ip(self.cursor, IP)
 
@@ -134,6 +140,75 @@ def delete_chat(cur, chat_name):
                 )
     return 1
 
+# renames a chat
+def rename_chat(cur, prev_chat_name, new_chat_name):
+    if not is_valid_chatname(new_chat_name):
+        return 1
+
+    cur.execute(''' SELECT *
+                    FROM chats
+                    WHERE chatName=?
+                ''', (prev_chat_name,)
+                )
+    prev_chat_name_row = cur.fetchone()
+    if prev_chat_name_row == None:
+        return 2
+
+    cur.execute(''' SELECT *
+                    FROM chats
+                    WHERE chatName=?
+                ''', (new_chat_name,)
+                )
+    new_chat_name_row = cur.fetchone()
+    if new_chat_name_row != None:
+        return 3
+
+    cur.execute('''SELECT count(name) FROM sqlite_master WHERE type='table'
+                   AND name=?
+                ''', (prev_chat_name,))
+    if cur.fetchone()[0] != 0:
+        print(f"renaming table {prev_chat_name} to {new_chat_name}")
+        command = f'''ALTER TABLE "{prev_chat_name}" RENAME TO "{new_chat_name}"'''
+        cur.execute(command)
+    else:
+        return 4
+
+    cur_chatNum = prev_chat_name_row[0]
+
+    cur.execute(''' UPDATE chats
+                    SET chatName=? 
+                    WHERE chatNum=?
+                ''', (new_chat_name, cur_chatNum)
+                )
+    return 0
+
+# changes the IP Address for a chat
+def change_ip_address(cur, cur_chat_name, new_ip_address):
+    if not is_valid_chatname(cur_chat_name):
+        return 1
+    elif not is_valid_ip(new_ip_address):
+        return 2
+    
+    cur.execute(''' SELECT *
+                    FROM chats
+                    WHERE chatName=?
+                ''', (cur_chat_name,)
+                )
+
+    row = cur.fetchone()
+    if row == None:
+        return 3
+
+    cur_chatNum = row[0]
+
+    cur.execute(''' UPDATE chats
+                    SET receiverIP=? 
+                    WHERE chatNum=?
+                ''', (new_ip_address, cur_chatNum)
+                )
+
+    return 0
+
 # Print out the chats table
 def print_chats(cur):
     cur.execute(''' SELECT *
@@ -240,6 +315,7 @@ def get_random_uname():
 
 def main():
     # Connect to (or create) a database with name 'testDB.db'
+    
     con = sqlite3.connect('testMessageDB.db')
 
     # Get cursor object. Used to execute SQL statements
@@ -258,7 +334,7 @@ def main():
     
     print_chats(cur)
     while True:
-        command =  input("Enter d to delete chat, c to create chat, and 'exit' to exit loop: ")
+        command =  input("Enter d to delete chat, c to create chat, r to rename chat, ip to change IP Address, and 'exit' to exit loop: ")
         if command == "c":
             name = input("Enter chat name you would like to create: ")
             ip = input("Enter ip address: ")
@@ -267,6 +343,16 @@ def main():
         elif command == "d":
             chat_to_delete = input("Enter chat name you would like to delete: ")
             delete_chat(cur, chat_to_delete)
+            print_chats(cur)
+        elif command == "r":
+            chat_to_rename = input("Enter chat name you would like to rename: ")
+            new_chat_name = input("What would you like to rename this chat to?: ")
+            rename_chat(cur, chat_to_rename, new_chat_name)
+            print_chats(cur)
+        elif command == "ip":
+            chat_to_change_ip = input("Enter chat name you would like to change the IP Address for: ")
+            new_ip_address = input("Enter new ip address: ")
+            change_ip_address(cur, chat_to_change_ip, new_ip_address)
             print_chats(cur)
         else:
             break
