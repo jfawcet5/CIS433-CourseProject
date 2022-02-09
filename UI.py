@@ -72,7 +72,7 @@ class ChatMenu:
         headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=50)
         headerFrame.grid(column=0, row=0, columnspan=3, sticky='NEWS')
         footerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=50)
-        footerFrame.grid(column=0, row=6, columnspan=3, sticky='NEWS')
+        footerFrame.grid(column=0, row=6, columnspan=2, sticky='NEWS')
         centerFrame = ttk.Frame(mainframe, width=600, height=600)
         centerFrame.grid(column=0, row=1, rowspan=5, columnspan=3, sticky='NEWS')
         centerFrame.grid_propagate(0)
@@ -93,8 +93,8 @@ class ChatMenu:
 
         # Display text entry field at bottom for user to enter messages
         self.text = Text(footerFrame, height=1)
-        self.text.grid(row=0,column=0, columnspan=2, sticky="EW", padx=5)
-        Button(footerFrame, text='Send', bg='#434343', fg='white', command=self.sendMessage).grid(row=0,column=1, sticky="E", padx="2")
+        self.text.grid(row=0,column=0, sticky="EW", padx=5)
+        Button(footerFrame, text='Send', bg='#434343', fg='white', command=self.sendMessage).grid(row=0,column=2, sticky="EW", padx="2")
 
         # Display messages in center of screen
         canvas = Canvas(centerFrame, width=596, height=616, background='#cfe2f3')
@@ -177,6 +177,7 @@ class ChatMenu:
         success = client.sendMessage(message, ip)
 
         if not success:
+            self.parent.createPopUp(ErrorPopUp, 'Failed to send message')
             self.text.delete('1.0', END)
             self.text.insert('end-1c', message)
             return None
@@ -205,49 +206,82 @@ class NewChatMenu:
         centerFrame = ttk.Frame(mainframe, style='newchat.TFrame', width=600, height=600)
         centerFrame.grid(column=0, row=1, rowspan=6, columnspan=3, sticky='NEWS')
         footerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=50)
-        footerFrame.grid(column=0, row=6, columnspan=1, sticky='NEWS')
+        footerFrame.grid(column=0, row=6, columnspan=3, sticky='NEWS')
 
         headerFrame.rowconfigure(0, weight=1)
         headerFrame.columnconfigure(0,weight=1)
         headerFrame.columnconfigure(1,weight=1)
         headerFrame.columnconfigure(2,weight=1)
 
+        centerFrame.columnconfigure(0,weight=1)
+        centerFrame.columnconfigure(1,weight=0)
+        centerFrame.columnconfigure(2,weight=0)
+        centerFrame.columnconfigure(3,weight=1)
+
         footerFrame.rowconfigure(0, weight=1)
         footerFrame.columnconfigure(0,weight=1)
         footerFrame.columnconfigure(1,weight=1)
+        footerFrame.columnconfigure(2,weight=1)
 
         ttk.Label(headerFrame, text='New Chat', background='#434343', foreground='white').grid(row=0,column=1)
         Button(headerFrame, text='Back', bg='#434343', fg='white', command=self.gotoMainMenu).grid(row=0,column=0, sticky="W", padx="2")
 
         ttk.Label(centerFrame, text="To:", font=('Arial', 15), background='#525252', foreground='white').grid(row=1, column=1)
-        self.receivertext = Text(centerFrame, height=1)
-        self.receivertext.grid(row=1, column=2, columnspan=2, sticky="EW", padx=5)
+        #self.userName = StringVar()
+        vcName = (self.parent.root.register(self.validateChatNameEntry), '%d', '%P')
+        #name = ttk.Entry(centerFrame, textvariable=self.userName, validate="key", validatecommand=validationCommand)
+        self.cName = StringVar()
+        self.receivertext = ttk.Entry(centerFrame, textvariable=self.cName, validate="key", validatecommand=vcName)
+        self.receivertext.grid(row=1, column=2, sticky="EW", padx=5, pady=12)
 
         ttk.Label(centerFrame, text="IP Address:", font=('Arial', 15), background='#525252', foreground='white').grid(row=2, column=1)
-        self.IPtext = Text(centerFrame, height=1)
-        self.IPtext.grid(row=2, column=2, columnspan=2, sticky="EW", padx=5)
+        vIP = (self.parent.root.register(self.validateIPEntry), '%d', '%P')
+        self.IP = StringVar()
+        self.IPtext = ttk.Entry(centerFrame, textvariable=self.IP, validate="key", validatecommand=vIP)
+        self.IPtext.grid(row=2, column=2, sticky="EW", padx=5, pady=12)
 
         self.text = Text(footerFrame, height=1)
-        self.text.grid(row=0,column=0, columnspan=2, sticky="EW", padx=5)
-        Button(footerFrame, text='Send', bg='#434343', fg='white', command=self.sendMessage).grid(row=0,column=1, sticky="E", padx="2")
+        #self.text.grid(row=0,column=0, columnspan=2, sticky="EW", padx=5)
+        Button(footerFrame, text='Create', bg='green', fg='white', command=self.createChat).grid(row=0,column=1, padx=2)
 
     def gotoMainMenu(self):
         self.parent.switchFrame(MainMenu, None)
         return None
+
+    def validateChatNameEntry(self, action, newText):
+        # Limits length of chat name to 20 characters
+        if action == '1':
+            if len(newText) > 20:
+                return False
+            else:
+                return True
+        return True
+
+    def validateIPEntry(self, action, newText):
+        # Limits length of chat name to 20 characters
+        if action == '1':
+            # longest ip have form: 255.255.255.255
+            if len(newText) > 15:
+                return False
+            elif len(newText.split('.')) > 4:
+                return False
+            else:
+                return True
+        return True
     
-    def sendMessage(self):
-        chatName = self.receivertext.get('1.0', 'end-1c')
-        IP = self.IPtext.get('1.0', 'end-1c')
+    def createChat(self):
+        chatName = self.cName.get()
+        IP = self.IP.get()
 
         # Store new chat in the database
         db = self.parent.db
         success = db.create_chat(chatName, IP)
         if success == 1:
-            print('Invalid Chat Name')
+            self.parent.createPopUp(ErrorPopUp, 'Invalid Chat Name')
         elif success == 2:
-            print('Invalid IP Address')
+            self.parent.createPopUp(ErrorPopUp, 'Invalid IP Address')
         elif success == 3:
-            print('Chat Name: \'{}\' already exists'.format(chatName))
+            self.parent.createPopUp(ErrorPopUp, 'Chat Name: \'{}\' already exists'.format(chatName))
         return None
 # =========================================================================================================================================================================================
 
@@ -301,35 +335,48 @@ class SettingsMenu:
 
         db = self.parent.db
         cur_IP = db.get_ip_by_chatname(cur_chatname)
+        error1 = True
+        error2 = True
 
         # Changes IP Address
         if len(new_IP) > 0:
             update_IP_success = db.update_ip(cur_chatname, new_IP)
             if update_IP_success == 1:
-                print(f"Invalid chatname: '{cur_chatname}'")
+                self.parent.createPopUp(ErrorPopUp, f"Invalid chatname: '{cur_chatname}'")
             elif update_IP_success == 2:
                 print(f"Invalid IP Address: {new_IP}")
+                self.parent.createPopUp(ErrorPopUp, f"Invalid IP Address: {new_IP}")
             elif update_IP_success == 3:
-                print(f"The chat you are trying to change the IP Address for, which is '{cur_chatname}', does not exist")
+                self.parent.createPopUp(ErrorPopUp, f"The chat you are trying to change the IP Address for, which is '{cur_chatname}', does not exist")
             else:
                 print(f"Changed IP Address from {cur_IP} to {new_IP} successfully")
+                error1 = False
+        else:
+            error1 = False
 
         # Renames Chat
         if len(new_chatname) > 0:
             rename_chat_success = db.update_chatname(cur_chatname, new_chatname)
             if rename_chat_success == 1:
                 print(f"Invalid chatname: '{new_chatname}'")
+                self.parent.createPopUp(ErrorPopUp, f"Invalid chatname: '{new_chatname}'")
             elif rename_chat_success == 2:
                 print(f"The chat you are trying to rename, which is '{cur_chatname}', does not exist")
+                self.parent.createPopUp(ErrorPopUp, f"The chat you are trying to rename, which is '{cur_chatname}', does not exist")
             elif rename_chat_success == 3:
                 print(f"chat '{new_chatname}' already exists")
+                self.parent.createPopUp(ErrorPopUp, f"chat '{new_chatname}' already exists")
             elif rename_chat_success == 4:
                 print(f"Table '{cur_chatname}' does not exist")
             else:
                 print(f"Renamed '{cur_chatname}' to '{new_chatname}' successfully")
+                error2 = False
+        else:
+            error2 = False
         
         # Go back to the main menu after settings have been updated
-        self.gotoMainMenu()
+        if not error1 and not error2:
+            self.gotoMainMenu()
         return None
 
     def gobacktochat(self, chatname):
@@ -372,7 +419,8 @@ class PreferencesMenu:
 
         ttk.Label(centerFrame, text='Username:', background='#434343', foreground='white').grid(row=0,column=0, sticky="W")
         self.userName = StringVar()
-        name = ttk.Entry(centerFrame, textvariable=self.userName)
+        validationCommand = (self.parent.root.register(self.validateInsert), '%d', '%P')
+        name = ttk.Entry(centerFrame, textvariable=self.userName, validate="key", validatecommand=validationCommand)
         name.grid(row=1, column=0, sticky="WE")
         name.insert(0, self.parent.client.getUserName())
         Button(centerFrame, text='Enter', bg='#434343', fg='white', command=self.updateUserName).grid(row=1,column=1, sticky="W", padx="2")
@@ -407,11 +455,21 @@ class PreferencesMenu:
 
     def updateUserName(self, args=None):
         newName = self.userName.get()
-        if len(newName) < 3:
+        if len(newName) < 3 or len(newName) > 16:
             print('Invalid Username')
+            self.parent.createPopUp(ErrorPopUp, 'Invalid User Name')
             return None
         self.parent.client.updateUserName(newName)
         return None
+
+    def validateInsert(self, action, newText):
+        # Limit the number of characters a user can insert to 16
+        if action == '1':
+            if len(newText) > 16:
+                return False
+            else:
+                return True
+        return True
 
     def updateComboBox(self, args):
         self.parent.client.updatePreference(eType=self.etype.current())
@@ -495,8 +553,52 @@ class ReceivedMessagePopUp:
         self.closePopUp()
 
     def closePopUp(self):
-        self.parent.closePopUp()
-        self.popUp.destroy()  
+        self.parent.closePopUp(self)
+        self.popUp.destroy()
+# =========================================================================================================================================================================================
+
+# =================================================================================== Error Popup Menu ====================================================================================
+class ErrorPopUp:
+    def __init__(self, parent, position, args=None):
+        self.parent = parent
+        if args is not None:
+            self.errormsg = args
+        else:
+            self.errormsg = ''
+
+        self.popUp = Toplevel(self.parent.root)
+        self.popUp.geometry(position)
+        self.popUp.resizable(False, False)
+        self.popUp.title("Error")
+
+        self.mainframe = None
+        self.popUp.transient(self.parent.root)
+        self.popUp.protocol("WM_DELETE_WINDOW", self.closePopUp)
+
+        self.gotoMainPopUp()
+
+    def gotoMainPopUp(self):
+        if self.mainframe is not None:
+            self.mainframe.destroy()
+        self.mainframe = ttk.Frame(self.popUp, style='error.TFrame')
+        self.mainframe.grid()
+
+
+        self.mainframe.rowconfigure(0, weight=1)
+        self.mainframe.rowconfigure(1, weight=0)
+        self.mainframe.rowconfigure(2, weight=1)
+        self.mainframe.columnconfigure(0,weight=1)
+        self.mainframe.columnconfigure(1,weight=0)
+        self.mainframe.columnconfigure(2,weight=1)
+
+        Label(self.mainframe, text="Error", background='red', foreground='white').grid(row=0, column=0, sticky="w")
+        Label(self.mainframe, text=self.errormsg, background='red', foreground='white').grid(row=1, column=0, sticky="w")
+
+        Button(self.mainframe, text='OK', command=self.closePopUp).grid(row=2, column=2, sticky='e')
+
+    def closePopUp(self):
+        self.parent.closePopUp(self)
+        self.popUp.destroy()
 # =========================================================================================================================================================================================
 
 # =================================================================================== Interface Manager ===================================================================================
@@ -522,7 +624,7 @@ class UI:
 
         root.protocol("WM_DELETE_WINDOW", self.closeApp)
 
-        self.popUpMenu = None
+        self.popUps = []
 
         self.buffer = []
 
@@ -591,7 +693,12 @@ class UI:
                 self.createPopUp(ReceivedMessagePopUp, messageFields)
 
     def update_UI(self):
-        if len(self.buffer) != 0 and self.popUpMenu is None:
+        count = 0
+        for p in self.popUps:
+            if type(p) == ReceivedMessagePopUp:
+                count += 1
+        
+        if len(self.buffer) != 0 and count == 0:
             message = self.buffer.pop()
             self.handleMessage(message)
         self.display.after(1000, self.update_UI)
@@ -600,11 +707,15 @@ class UI:
     def createPopUp(self, popUpClass, message):
         print('create popup')
         position = self.root.geometry()[7:]
-        self.popUpMenu = popUpClass(self, position, message)
+        self.popUps.append(popUpClass(self, position, message))
         return None
 
-    def closePopUp(self):
-        self.popUpMenu = None
+    def closePopUp(self, popUp):
+        try:
+            self.popUps.remove(popUp)
+        except Exception:
+            pass
+        return None
 # =========================================================================================================================================================================================
 
 # ===================================================================================== Start Program =====================================================================================
@@ -612,6 +723,9 @@ root = Tk()
     
 mainFrameStyle = ttk.Style()
 mainFrameStyle.configure('BG.TFrame', background='#cfe2f3', borderwidth=5, relief='flat')
+
+errorStyle = ttk.Style()
+errorStyle.configure('error.TFrame', background='red', borderwidth=5, relief='flat')
 
 chatBG = ttk.Style()
 chatBG.configure('chat.TFrame', background='#cfe2f3', borderwidth=1, relief='flat')

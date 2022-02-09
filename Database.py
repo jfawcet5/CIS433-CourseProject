@@ -56,6 +56,8 @@ def is_valid_ip(IP):
     for i in range(4):
         if not octets[i].isdecimal():
             return False
+        elif int(octets[i]) > 255:
+            return False
     return True
 
 def connect_database():
@@ -316,7 +318,8 @@ def get_random_uname():
 def main():
     # Connect to (or create) a database with name 'testDB.db'
     
-    con = sqlite3.connect('testMessageDB.db')
+    #con = sqlite3.connect('testMessageDB.db')
+    con = sqlite3.connect('data/MessageDB.db')
 
     # Get cursor object. Used to execute SQL statements
     cur = con.cursor()
@@ -333,8 +336,9 @@ def main():
     #add_message(cur, 'Hans Prieto', 0, 'Hi Hans')
     
     print_chats(cur)
+    print('Commands:\nd: delete chat\nc: create chat\nr: rename chat\nip: change IP address\ni: insert message\npc: print chats\npm: print messages\nexit: exit')
     while True:
-        command =  input("Enter d to delete chat, c to create chat, r to rename chat, ip to change IP Address, and 'exit' to exit loop: ")
+        command =  input("Command: ")
         if command == "c":
             name = input("Enter chat name you would like to create: ")
             ip = input("Enter ip address: ")
@@ -353,7 +357,22 @@ def main():
             chat_to_change_ip = input("Enter chat name you would like to change the IP Address for: ")
             new_ip_address = input("Enter new ip address: ")
             change_ip_address(cur, chat_to_change_ip, new_ip_address)
+        elif command == "pc":
             print_chats(cur)
+        elif command == "i":
+            chat_to_add_to = input("Insert message into which chat: ")
+            sender = input("0 for received, 1 for sent: ")
+            message = input("Message to be inserted: ")
+            if message.isdecimal():
+                num = int(message)
+                message = ''
+                for i in range(num):
+                    message += 'a'
+            add_message(cur, chat_to_add_to, int(sender), message)
+        elif command == "pm":
+            chat = input("Enter chat to read from: ")
+            print(get_messages(cur, chat, 100))
+            pass
         else:
             break
 
