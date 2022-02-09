@@ -282,6 +282,8 @@ class NewChatMenu:
             self.parent.createPopUp(ErrorPopUp, 'Invalid IP Address')
         elif success == 3:
             self.parent.createPopUp(ErrorPopUp, 'Chat Name: \'{}\' already exists'.format(chatName))
+        elif success == 4:
+            self.parent.createPopUp(ErrorPopUp, 'IP Address: \'{}\' already exists'.format(IP))
         return None
 # =========================================================================================================================================================================================
 

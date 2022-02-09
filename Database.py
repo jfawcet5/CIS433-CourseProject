@@ -90,21 +90,32 @@ def get_chat_by_ip(cur, IP):
 
     return cur.fetchone()
 
-# Create a new chat
-def create_chat(cur, chat_name, receiverIP):
-    if not is_valid_chatname(chat_name):
-        return 1
-    elif not is_valid_ip(receiverIP):
-        return 2
+def get_ip_address(cur, chat_name):
     cur.execute(''' SELECT *
                     FROM chats
                     WHERE chatName=?
                 ''', (chat_name,)
                 )
+    val = cur.fetchone()
+    if val is not None:
+        return val[1]
+    else:
+        return None
 
-    if cur.fetchone() != None:
+# Create a new chat
+def create_chat(cur, chat_name, receiverIP):
+    # Input validation
+    if not is_valid_chatname(chat_name):
+        return 1
+    elif not is_valid_ip(receiverIP):
+        return 2
+
+    if get_ip_address(cur, chat_name) is not None:
         return 3
-    
+    if get_chat_by_ip(cur, receiverIP) is not None:
+        return 4
+
+    # Get largest chatNum
     cur.execute(''' SELECT *
                     FROM chats
                     ORDER BY chatNum DESC
@@ -115,10 +126,11 @@ def create_chat(cur, chat_name, receiverIP):
         newv = 0
     else:
         newv = val[0] + 1
+    # Create new chat with appropriate values
     cur.execute(''' INSERT INTO chats (chatNum, receiverIP, chatName)
                     VALUES (?, ?, ?)
                 ''', (newv, receiverIP, chat_name))
-
+    # Create corresponding message table
     create_message_table(cur, chat_name)
     return 0
 
