@@ -243,15 +243,6 @@ def get_chats_list(cur):
     val = cur.fetchall()
     return val
 
-def get_ip_address(cur, chat_name):
-    cur.execute(''' SELECT *
-                    FROM chats
-                    WHERE chatName=?
-                ''', (chat_name,)
-                )
-    val = cur.fetchone()
-    return val[1]
-
 def create_message_table(cur, chat_name):
     #name = f'chat{chat_num}'
     # Check if table 'users' already exists
