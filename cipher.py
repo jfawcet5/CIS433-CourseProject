@@ -1,7 +1,16 @@
+'''
+
+    Sources:
+            Cryptography module: https://cryptography.io/en/latest/
+'''
+
 import string
 
 import os
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 # ===================================================== ROT13 ====================================================
 plain_alpha = "abcdefghijklmnopqrstuvwxyz"
@@ -115,9 +124,112 @@ def AES_decrypt(ciphertext, iv, key=AES_KEY):
 
     # Return plaintext string
     return plaintext.decode()
+# ================================================================================================================
 
+# ===================================================== RSA ======================================================
 
+def RSA_gen_priv_key():
+    # Generate RSA private key
+    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
+def RSA_get_pub_from_priv(privKey):
+    # Get public key from private key
+    return privKey.public_key()
+
+def RSA_gen_key_pair():
+    # Generate public/private key pair
+    privKey = RSA_gen_priv_key()
+    pubKey = RSA_get_pub_from_priv(privKey)
+    return pubKey, privKey
+
+def RSA_store_private_key(privKey, path='data/RSAPRIVATEKEY.pem'):
+    # Store RSA private key in .pem file on disk
+    pem = privKey.private_bytes(encoding=serialization.Encoding.PEM,
+                             format=serialization.PrivateFormat.PKCS8,
+                             encryption_algorithm=serialization.NoEncryption()
+                             )
+    with open(path, 'wb+') as key_file:
+        key_file.write(pem)
+    return None
+
+def RSA_load_private_key(key_path='data/RSAPRIVATEKEY.pem'):
+    # Retrieves RSA private key from .pem file on disk
+    priv = None
+    try:
+        with open(key_path, 'rb') as key_file:
+            priv = serialization.load_pem_private_key(key_file.read(), password=None)
+    except FileNotFoundError:
+        print('Key: \'{}\' does not exist'.format(key_path))
+
+    return priv
+
+def RSA_public_key_encrypt(message, pubKey):
+    # Encrypt message using a public key
+    ct = pubKey.encrypt(message.encode(),
+                        padding.OAEP(
+                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                            )
+                        )
+    return ct
+
+def RSA_private_key_decrypt(ciphert, privKey):
+    # Decrypt a message using a private key
+    pt = privKey.decrypt(ciphert,
+                          padding.OAEP(
+                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                            )
+                        )
+    return pt.decode()
+
+def RSA_sign(message, privKey):
+    # Create a signature for a given message
+    signature = privKey.sign(message,
+                             padding.PSS(
+                                 mgf=padding.MGF1(hashes.SHA256()),
+                                 salt_length=padding.PSS.MAX_LENGTH
+                                 ),
+                             hashes.SHA256()
+                            )
+    return signature
+
+def RSA_verify(signature, message, pubKey):
+    # Verify that the signature matches the message
+    a = pubKey.verify(signature,
+                      message,
+                      padding.PSS(
+                                 mgf=padding.MGF1(hashes.SHA256()),
+                                 salt_length=padding.PSS.MAX_LENGTH
+                                 ),
+                     hashes.SHA256()
+                    )
+    return None
+
+def RSA_encrypt(message, rcvPub, sndPriv):
+    ''' (string, bytes, bytes) -> (bytes, bytes)
+
+        Authenticated encryption with signature generation
+    '''
+    cipherText = RSA_public_key_encrypt(message, rcvPub)
+    signature = RSA_sign(cipherText, sndPriv)
+    return cipherText, signature
+
+def RSA_decrypt(ciphert, signature, sndPub, rcvPriv):
+    ''' (bytes, bytes, bytes, bytes) -> (string)
+
+        Authenticated decryption with signature verification
+    '''
+    try:
+        RSA_verify(signature, ciphert, sndPub)
+    except InvalidSignature:
+        print("Verification Error: Signature does not match")
+        return None
+
+    plaintext = RSA_private_key_decrypt(ciphert, rcvPriv)
+    return plaintext
 # ================================================================================================================
 
 # ===================================================== Main =====================================================
@@ -133,7 +245,7 @@ def main():
     print(f"encrypted message is: {enc}")
     print(f"decrypted message equal to orignal message, which is: {dec}
     """
-    print('Ciphers:\n0: ROT13\n1: Fernet\n2: AES')
+    print('Ciphers:\n0: ROT13\n1: Fernet\n2: AES\n3: RSA')
     while True:
         cipher = input("Cipher to test: ")
         
@@ -202,6 +314,35 @@ def main():
                 print("Original message: {}\nEncrypted message: {}".format(message, ciphertext))
                 print("Decrypted message: {}".format(dec))
                 print("Decrypted message matches original message: {}\n".format(dec == message))
+
+        # RSA Cipher
+        elif cipher == '3':
+            key_path = input("Key File Path (0: generate, 1: default): ")
+            if key_path == '0':
+                pubKey, privKey = RSA_gen_key_pair()
+                RSA_store_private_key(privKey, 'data/RSAPRIVATEKEY.pem')
+            elif key_path == '1':
+                privKey = RSA_load_private_key()
+                if privKey is None:
+                    print()
+                    continue
+                pubKey = RSA_get_pub_from_priv(privKey)
+            else:
+                privKey = RSA_load_private_key(key_path)
+                if privKey is None:
+                    print()
+                    continue
+                pubKey = RSA_get_pub_from_priv(privKey)
+
+            rcvPub, rcvPriv = RSA_gen_key_pair()
+
+            print('Testing RSA')
+            message = input("Message: ")
+            ciphertext, signature = RSA_encrypt(message, rcvPub, privKey)
+            dec = RSA_decrypt(ciphertext, signature, pubKey, rcvPriv)
+            print("Original message: {}\nEncrypted message: {}".format(message, ciphertext))
+            print("Decrypted message: {}".format(dec))
+            print("Decrypted message matches original message: {}\n".format(dec == message))
         else:
             break
 
