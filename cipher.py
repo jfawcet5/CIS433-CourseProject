@@ -232,6 +232,126 @@ def RSA_decrypt(ciphert, signature, sndPub, rcvPriv):
     return plaintext
 # ================================================================================================================
 
+# ===================================================== Vigenere ====================================================
+enc_key = "test"
+dec_key = enc_key
+def vig_encrypt(input_str):
+    enc_str = ""
+
+    # length of input string
+    string_length = len(input_str)
+
+    # expand encryption key to make it longer than input string
+    expanded_key = enc_key
+    expanded_key_length = len(expanded_key)
+    while expanded_key_length < string_length:
+        expanded_key = expanded_key + enc_key
+        expanded_key_length = len(expanded_key)
+
+    key_pos = 0
+
+    for i in range(string_length):
+        cur = input_str[i]
+        # handle case where current character is uppercase
+        if cur.isalpha() and cur.isupper():
+            # convert current character to lowercase
+            cur = cur.lower()
+        
+            # find position of letter in alphabet
+            letter_pos = plain_alpha.find(cur)
+            key_char = expanded_key[key_pos]
+            key_char_pos = plain_alpha.find(key_char)
+            key_pos = key_pos + 1
+
+            # change original of input string character
+            new_pos = letter_pos + key_char_pos
+            if new_pos >= 26:
+                new_pos = new_pos - 26
+            
+            # convert new character to uppercase
+            new_char = plain_alpha[new_pos].upper()
+            enc_str = enc_str + new_char
+
+        # handle case where current character is lowercase
+        elif cur.isalpha() and cur.islower():
+            # find position of letter in alphabet
+            letter_pos = plain_alpha.find(cur)
+            key_char = expanded_key[key_pos]
+            key_char_pos = plain_alpha.find(key_char)
+            key_pos = key_pos + 1
+
+            # change original of input string character
+            new_pos = letter_pos + key_char_pos
+            if new_pos >= 26:
+                new_pos = new_pos - 26
+            new_char = plain_alpha[new_pos]
+            enc_str = enc_str + new_char
+
+        # handle case where current character is not a letter
+        else:
+            enc_str = enc_str + cur
+
+    return enc_str
+
+def vig_decrypt(input_str):
+    dec_str = ""
+
+    # length of input string
+    string_length = len(input_str)
+
+    # expand decryption key to make it longer than input string
+    expanded_key = dec_key
+    expanded_key_length = len(expanded_key)
+    while expanded_key_length < string_length:
+        expanded_key = expanded_key + dec_key
+        expanded_key_length = len(expanded_key)
+
+    key_pos = 0
+
+    for i in range(string_length):
+        cur = input_str[i]
+        # handle case where current character is uppercase
+        if cur.isalpha() and cur.isupper():
+            # convert current character to lowercase
+            cur = cur.lower()
+        
+            # find position of letter in alphabet
+            letter_pos = plain_alpha.find(cur)
+            key_char = expanded_key[key_pos]
+            key_char_pos = plain_alpha.find(key_char)
+            key_pos = key_pos + 1
+
+            # change original of input string character
+            new_pos = letter_pos - key_char_pos
+            if new_pos >= 26:
+                new_pos = new_pos + 26
+            
+            # convert new character to uppercase
+            new_char = plain_alpha[new_pos].upper()
+            dec_str = dec_str + new_char
+
+        # handle case where current character is lowercase
+        elif cur.isalpha() and cur.islower():
+            # find position of letter in alphabet
+            letter_pos = plain_alpha.find(cur)
+            key_char = expanded_key[key_pos]
+            key_char_pos = plain_alpha.find(key_char)
+            key_pos = key_pos + 1
+
+            # change original of input string character
+            new_pos = letter_pos - key_char_pos
+            if new_pos >= 26:
+                new_pos = new_pos + 26
+            new_char = plain_alpha[new_pos]
+            dec_str = dec_str + new_char
+
+        # handle case where current character is not a letter
+        else:
+            dec_str = dec_str + cur
+
+    return dec_str
+# ================================================================================================================
+
 # ===================================================== Main =====================================================
 def main():
     """
@@ -245,7 +365,7 @@ def main():
     print(f"encrypted message is: {enc}")
     print(f"decrypted message equal to orignal message, which is: {dec}
     """
-    print('Ciphers:\n0: ROT13\n1: Fernet\n2: AES\n3: RSA')
+    print('Ciphers:\n0: ROT13\n1: Fernet\n2: AES\n3: RSA\n4: Vigenere')
     while True:
         cipher = input("Cipher to test: ")
         
@@ -343,6 +463,25 @@ def main():
             print("Original message: {}\nEncrypted message: {}".format(message, ciphertext))
             print("Decrypted message: {}".format(dec))
             print("Decrypted message matches original message: {}\n".format(dec == message))
+
+        # Vigenere Cipher
+        elif cipher == '4':
+            command = input("Encrypt: e, Decrypt: d, Test: t - ")
+            if command == 'e':
+                plaintext = input("Plaintext: ")
+                print("Ciphertext is: {}\n".format(vig_encrypt(plaintext)))
+            elif command == 'd':
+                ciphertext = input("Ciphertext: ")
+                print("Plaintext is: {}\n".format(vig_decrypt(ciphertext)))
+            else:
+                print("Testing Vigenere")
+                message = input("Message: ")
+                enc = vig_encrypt(message)
+                dec = vig_decrypt(enc)
+                print("Original message: {}\nEncrypted message: {}".format(message, enc))
+                print("Decrypted message: {}".format(dec))
+                print("Decrypted message matches original message: {}\n".format(dec == message))
+
         else:
             break
 
