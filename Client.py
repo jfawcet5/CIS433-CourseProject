@@ -1,32 +1,41 @@
 from socket import *
 from threading import Thread
+from cipher import *
 import time
 import traceback
 import json
 
 serverName = "54.144.253.235"
+#serverName = "127.0.0.1"
 serverPort = 12000
 
 # ================================================= Client Class =================================================
 class Client:
     def __init__(self, rThreadCallback=None):
         self.profile = read_user_profile()
-        self.soc = connectToServer()
+
+        server_connection = connectToServer()
         self.rThread = None
         self.connected = False
-        if self.soc is not None:
+        if server_connection is not None:
             self.connected = True
-            self.rThread = create_receiving_thread(self.soc, rThreadCallback)
+            self.soc, self.sessionKey = server_connection
+            self.rThread = create_receiving_thread(self.soc, self.sessionKey, rThreadCallback)
 
         self.encryptionTypes = {'plaintext': 0, 'ROT13': 1, 'vigenere': 2}
 
     def sendMessage(self, message, IP):
         uName = self.profile['uName']
         encryptionType = self.profile['preferences']['eType']
-        return sendMessageTo(message, IP, uName, encryptionType)
+        sendSuccess = sendMessageTo(self.soc, message, IP, uName, encryptionType, self.sessionKey)
+        time.sleep(.25)
+        recvAck = self.rThread.status.ACK
+        status = sendSuccess and recvAck
+        self.rThread.status.ACK = False
+        print(f'Message Sent to Server: {sendSuccess}, Received ACK: {recvAck}')
+        return status
 
     def readMessage(self, message):
-        # decrypt message and split header data from message
         return message
 
     def getUserName(self):
@@ -51,13 +60,14 @@ class Client:
     def disconnect(self):
         if self.rThread is not None:
             self.rThread.close()
-        disconnectServer(self.soc)
+        disconnectServer(self.soc, self.sessionKey)
 # ================================================================================================================
 
 # =============================================== Receiving Thread ===============================================
 class RThreadStatus:
     def __init__(self):
         self.terminate = False
+        self.ACK = False
 
 class ReceivingThread:
     def __init__(self, t, s):
@@ -68,19 +78,26 @@ class ReceivingThread:
         self.status.terminate = True
         self.thread.join()
 
-def receiving_thread(conn, bufferSize, status, rCallback=None):
+def receiving_thread(conn, bufferSize, status, sessionKey, rCallback=None):
     print('Receiving Thread running')
-    conn.settimeout(2)
+    conn.settimeout(1)
     while not status.terminate:
         try:
-            packet = conn.recv(bufferSize).decode()
-        except Exception:
+            packet = conn.recv(bufferSize)
+        except timeout:
             continue
 
-        fields = unPack(packet)
+        # Decrypt packet and separate the values
+        fields = unPack(packet, sessionKey)
+        if fields is None:
+            continue
         if len(fields) != 4:
+            # Check for ACK from server
+            if fields[0] == b'50':
+                print("ACK")
+                status.ACK = True
             continue
-
+        
         senderName = fields[0]
         message = fields[1]
         ip = fields[2]
@@ -130,11 +147,11 @@ def read_user_profile():
 
         return data
 
-def create_receiving_thread(cSock, callback=None):
+def create_receiving_thread(cSock, sessionKey, callback=None):
     status = RThreadStatus()
     rThread = None
     try:
-        rThread = Thread(target=receiving_thread, args=(cSock, 4096, status, callback))
+        rThread = Thread(target=receiving_thread, args=(cSock, 4096, status, sessionKey, callback))
         rThread.start()
     except Exception:
         print('Receiving thread did not start')
@@ -148,6 +165,7 @@ def connectToServer():
     print('Connecting to server ... ', end='')
     # Create client socket
     clientSocket = socket(AF_INET, SOCK_STREAM)
+
     # Establish TCP connection with server
     clientSocket.settimeout(3)
     try:
@@ -157,54 +175,137 @@ def connectToServer():
         return None
     clientSocket.settimeout(None)
 
+    # Get client IP (IP of machine before NAT)
     IP = get_ip()
+
+    # Retrieve stored RSA keys (Or generate and store RSA keys if no RSA key exists)
+    publicKey, privateKey = RSA_get_keys()
+
+    # Convert client public key object into bytes for transmission to server
+    pubkeyBytes = RSA_get_bytes_from_key(publicKey)
+
+    # Construct handshake message to send client public key to server
+    handshakeMessage = f"100\r\n{IP}\r\n".encode() + pubkeyBytes + b'\r\n0'
+
+    signature = RSA_sign(handshakeMessage, privateKey)
     
-    handshake = "100\r\n{}\r\n0\r\n0\r\n0".format(IP)
-    clientSocket.send(handshake.encode())
+    handshake1 = handshakeMessage + b'\r\n' + signature
+
+    clientSocket.settimeout(3)
+    try:
+        # Send client public key to server
+        clientSocket.send(handshake1)
+
+        # Receive server handshake message with server public key
+        handshake2 = clientSocket.recv(4096)
+
+        fields = handshake2.split(b'\r\n')
+
+        if len(fields) != 4:
+            print('invalid response')
+            return None
+
+        # Convert server public key from bytes to public key object
+        serverPubKey = RSA_get_key_from_bytes(fields[1])
+
+        # Retrieve and remove signature from header fields
+        signature = fields.pop(-1)
+
+        # Join header fields into bytes to test signature
+        message = b'\r\n'.join(fields)
+
+        # Verify the message using the signature
+        if not RSA_verify(signature, message, serverPubKey):
+            print("Invalid siganture")
+            return None
+
+        # Create AES session key
+        sessionKey = AES_generate_key()
+
+        # Construct handshake message to send session key to server
+        key_transfer = b'100\r\n0\r\n' + sessionKey
+
+        # Encrypt session key message with server public key and use client private key to sign message
+        enc_message, signature = RSA_encrypt(key_transfer, serverPubKey, privateKey)
+
+        # Send encrypted session key with signature to server
+        handshake3 = enc_message + b'\r\n' + signature
+        clientSocket.send(handshake3)
+        
+    except timeout:
+        print('Failed')
+        return None
+    clientSocket.settimeout(None)
 
     print('Success')
-    return clientSocket
+    return clientSocket, sessionKey
 
-def unPack(message):
-    return message.split('\r\n')
+def unPack(message, sessionKey):
+    # Split header fields of message
+    fields = message.split(b'\r\n')
 
-def sendMessageTo(message, destination, uName, encryptionType):
+    # Either improper format of header fields or message ACK from server
+    if len(fields) != 2:
+        return fields
+
+    # Decrypt message with client/server AES session key
+    plaintext = AES_decrypt(fields[1], fields[0], sessionKey)
+    # Split and return message header fields
+    return plaintext.split('\r\n')
+
+def sendMessageTo(soc, message, destination, uName, encryptionType, sessionKey):
     # Encrypt message
     # Create Packet
     packet = f'200\r\n{destination}\r\n{uName}\r\n{encryptionType}\r\n{message}'
 
-    soc = connectToServer()
+    # Encrypt packet with client/server session key
+    packet_enc, iv = AES_encrypt(packet, sessionKey)
 
-    # Encrypt packet
+    new_packet = iv + b'\r\n' + packet_enc
 
-    # Send Packet
+    # Send encrypted message and initialization vector to server
     soc.settimeout(3)
     try:
-        soc.send(packet.encode())
-        ACK = soc.recv(4096).decode()
-        disconnectServer(soc)
-        if ACK == '0':
-            return True
-        else:
-            return False
-    except Exception:
-        print('Failed to send message')
-        disconnectServer(soc)
+        soc.send(new_packet)
+    except timeout:
+        print("Failed to send message")
         return False
 
-def disconnectServer(soc):
+    return True
+
+def disconnectServer(soc, sessionKey):
+    # Create and encrypt packet to inform server of disconnect
+    packet = "0\r\n0\r\n0\r\n0\r\n0"
+    packet_enc, iv = AES_encrypt(packet, sessionKey)
+
+    # Send packet to server
+    new_packet = iv + b'\r\n' + packet_enc
     try:
-        soc.send("0\r\n0\r\n0\r\n0\r\n0".encode())
+        soc.send(new_packet)
         time.sleep(0.5)
         soc.close()
-    except:
+    except Exception:
         pass
     return None
 # ================================================================================================================
 
 # ===================================================== Main =====================================================
+
+def test():
+    while True:
+        function = input('>>>> ')
+
+        if function == '0':
+            IP = input('Receiver IP Address: ')
+            message = input('Message: ')
+            sendMessageTo(message, None, None, None)
+        elif function == '1':
+            time.sleep(5)
+        else:
+            return None
 def main():
-    print('Connecting to server... ', end="")
+    #print('Connecting to server... ', end="")
+    test()
     cSock = connectToServer()
     if cSock is not None:
         print('Success')
@@ -219,7 +320,7 @@ def main():
             if function == '0':
                 IP = input('Receiver IP Address: ')
                 message = input('Message: ')
-                sendMessageTo(cSock, message, IP)
+                sendMessageTo(message, None, None, None)
             elif function == '1':
                 time.sleep(5)
             else:

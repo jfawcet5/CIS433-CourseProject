@@ -86,7 +86,8 @@ def AES_encrypt(plaintext, key=AES_KEY):
     # Create AES cipher object in Cipher Block Chaining mode
     aesCipher = Cipher(algorithms.AES(key), modes.CBC(iv))
 
-    # Add padding to fill block size
+    # Add padding to fill block size. Note: padding is of the form: '000000X'
+    # Where X is the hexidecimal number indicating how much padding was added
     padding = 16 - (len(plaintext) % 16) - 1
 
     for i in range(padding):
@@ -107,7 +108,6 @@ def AES_encrypt(plaintext, key=AES_KEY):
 def AES_decrypt(ciphertext, iv, key=AES_KEY):
     ''' (bytes, bytes, bytes) -> string
     '''
-
     # Create AES cipher object in Cipher Block Chaining mode
     aesCipher = Cipher(algorithms.AES(key), modes.CBC(iv))
 
@@ -142,6 +142,26 @@ def RSA_gen_key_pair():
     pubKey = RSA_get_pub_from_priv(privKey)
     return pubKey, privKey
 
+def RSA_store_public_key(pubKey, path='data/RSAPUBLICKEY.pem'):
+    # Store RSA public key in .pem file on disk
+    pem = pubKey.public_bytes(encoding=serialization.Encoding.PEM,
+                             format=serialization.PublicFormat.SubjectPublicKeyInfo
+                             )
+    with open(path, 'wb+') as key_file:
+        key_file.write(pem)
+    return None
+
+def RSA_load_public_key(key_path='data/RSAPUBLICKEY.pem'):
+    # Retrieves RSA private key from .pem file on disk
+    pub = None
+    try:
+        with open(key_path, 'rb') as key_file:
+            pub = serialization.load_pem_public_key(key_file.read())
+    except FileNotFoundError:
+        print('Key: \'{}\' does not exist'.format(key_path))
+
+    return pub
+
 def RSA_store_private_key(privKey, path='data/RSAPRIVATEKEY.pem'):
     # Store RSA private key in .pem file on disk
     pem = privKey.private_bytes(encoding=serialization.Encoding.PEM,
@@ -163,9 +183,51 @@ def RSA_load_private_key(key_path='data/RSAPRIVATEKEY.pem'):
 
     return priv
 
+def RSA_get_bytes_from_key(pubkey):
+    ''' (cryptography.hazmat.primitives.asymmetric.rsa.RSAPublicKey) -> bytes
+
+        Takes a public key object and returns a bytes object. This is used for public key
+        transfer through sockets
+    '''
+    pubkeyBytes = pubkey.public_bytes(encoding=serialization.Encoding.DER,
+                             format=serialization.PublicFormat.SubjectPublicKeyInfo
+                             )
+    return pubkeyBytes
+
+def RSA_get_key_from_bytes(pbytes):
+    ''' (bytes) -> cryptography.hazmat.primitives.asymmetric.rsa.RSAPublicKey
+
+        Takes a bytes encoding of public key (received through socket) and returns a public
+        key object. 
+    '''
+    pubkey = serialization.load_der_public_key(pbytes)
+    return pubkey
+
+def RSA_get_keys():
+    ''' () -> (cryptography.hazmat.primitives.asymmetric.rsa.RSAPublicKey, cryptography.hazmat.primitives.asymmetric.rsa.RSAPrivateKey)
+
+        Reads the RSA private and public key from files and returns them. If no RSA public or private keys exist, this will
+        create an RSA public/private key pair, store them, and return them
+    '''
+    priv = RSA_load_private_key()
+    if priv is not None:
+        pub = RSA_get_pub_from_priv(priv)
+        return pub, priv
+    else:
+        print('Creating key pair')
+        pub, priv = RSA_gen_key_pair()
+        RSA_store_private_key(priv)
+        RSA_store_public_key(pub)
+        return pub, priv
+
 def RSA_public_key_encrypt(message, pubKey):
-    # Encrypt message using a public key
-    ct = pubKey.encrypt(message.encode(),
+    ''' (string/bytes, cryptography.hazmat.primitives.asymmetric.rsa.RSAPublicKey) -> bytes
+
+        Encrypts a message using a public RSA key
+    '''
+    if type(message) == str:
+        message = message.encode()
+    ct = pubKey.encrypt(message,
                         padding.OAEP(
                             mgf=padding.MGF1(algorithm=hashes.SHA256()),
                             algorithm=hashes.SHA256(),
@@ -175,7 +237,11 @@ def RSA_public_key_encrypt(message, pubKey):
     return ct
 
 def RSA_private_key_decrypt(ciphert, privKey):
-    # Decrypt a message using a private key
+    ''' (bytes, cryptography.hazmat.primitives.asymmetric.rsa.RSAPrivateKey) -> bytes
+
+        Decrypts a message using the RSA private key corresponding to the
+        public key that was used to encrypt the message
+    '''
     pt = privKey.decrypt(ciphert,
                           padding.OAEP(
                             mgf=padding.MGF1(algorithm=hashes.SHA256()),
@@ -183,10 +249,14 @@ def RSA_private_key_decrypt(ciphert, privKey):
                             label=None
                             )
                         )
-    return pt.decode()
+    return pt
 
 def RSA_sign(message, privKey):
-    # Create a signature for a given message
+    ''' (string/bytes, cryptography.hazmat.primitives.asymmetric.rsa.RSAPrivateKey) -> bytes
+
+        Creates a signature for a message using an RSA private key. The corresponding public
+        key can be used to verify the signature. 
+    '''
     signature = privKey.sign(message,
                              padding.PSS(
                                  mgf=padding.MGF1(hashes.SHA256()),
@@ -197,19 +267,26 @@ def RSA_sign(message, privKey):
     return signature
 
 def RSA_verify(signature, message, pubKey):
-    # Verify that the signature matches the message
-    a = pubKey.verify(signature,
-                      message,
-                      padding.PSS(
-                                 mgf=padding.MGF1(hashes.SHA256()),
-                                 salt_length=padding.PSS.MAX_LENGTH
-                                 ),
-                     hashes.SHA256()
-                    )
-    return None
+    ''' (bytes, bytes, cryptography.hazmat.primitives.asymmetric.rsa.RSAPublicKey) -> bool
+
+        Verifies that the message was created by someone with the corresponding private
+        key using the provided signature and users public key
+    '''
+    try:
+        a = pubKey.verify(signature,
+                          message,
+                          padding.PSS(
+                                     mgf=padding.MGF1(hashes.SHA256()),
+                                     salt_length=padding.PSS.MAX_LENGTH
+                                     ),
+                         hashes.SHA256()
+                        )
+    except InvalidSignature:
+        return False
+    return True
 
 def RSA_encrypt(message, rcvPub, sndPriv):
-    ''' (string, bytes, bytes) -> (bytes, bytes)
+    ''' (string/bytes, bytes, bytes) -> (bytes, bytes)
 
         Authenticated encryption with signature generation
     '''
@@ -218,13 +295,11 @@ def RSA_encrypt(message, rcvPub, sndPriv):
     return cipherText, signature
 
 def RSA_decrypt(ciphert, signature, sndPub, rcvPriv):
-    ''' (bytes, bytes, bytes, bytes) -> (string)
+    ''' (bytes, bytes, bytes, bytes) -> bytes
 
         Authenticated decryption with signature verification
     '''
-    try:
-        RSA_verify(signature, ciphert, sndPub)
-    except InvalidSignature:
+    if not RSA_verify(signature, ciphert, sndPub):
         print("Verification Error: Signature does not match")
         return None
 
@@ -232,7 +307,7 @@ def RSA_decrypt(ciphert, signature, sndPub, rcvPriv):
     return plaintext
 # ================================================================================================================
 
-# ===================================================== Vigenere ====================================================
+# ===================================================== Vigenere =================================================
 enc_key = "test"
 dec_key = enc_key
 def vig_encrypt(input_str):
