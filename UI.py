@@ -11,6 +11,8 @@ from tkinter import messagebox
 from Client import *
 from Database import DataBase
 
+import math
+
 # ====================================================================================== Main Menu ======================================================================================
 class MainMenu:
     def __init__(self, parent, other=None):
@@ -96,7 +98,7 @@ class ChatMenu:
         self.text.grid(row=0,column=0, sticky="EW", padx=5)
         Button(footerFrame, text='Send', bg='#434343', fg='white', command=self.sendMessage).grid(row=0,column=2, sticky="EW", padx="2")
 
-        # Display messages in center of screen
+        # Display messages in center of screen and create scroll bar
         canvas = Canvas(centerFrame, width=596, height=616, background='#cfe2f3')
         canvas.grid(row=0,column=0)
 
@@ -126,49 +128,65 @@ class ChatMenu:
         # Initialize messages from database
         self.displayMessages()
 
-    def updateText(self, other):
-        lines = self.text.get('1.0', 'end-1c').split('\n')
-        n = len(lines)
-        self.text.configure(height=n)
-        return None
-
     def gotoMainMenu(self):
+        # Switch from chat menu to main menu
         self.parent.switchFrame(MainMenu, None)
         return None
 
     def displayMessages(self):
+        # Get messages from database
         db = self.parent.db
-        self.messages = db.get_n_messages(self.cName.get(), 40)
-        messageList = self.messages
-        n = len(messageList)
+        self.messages = db.get_n_messages(self.cName.get(), math.inf)
+        n = len(self.messages)
+
+        # Clear message frame by destroying all child label widgets
+        for widget in self.messageFrame.winfo_children():
+            widget.destroy()
+
+        # Reset message frame grid
+        self.messageFrame.grid_forget()
                 
-        r = 0
+        r = 0 # Current row to display message on
+        
         for i in range(n, 0, -1):
+            # j is index into message list. Reads through messages backwards to display newest
+            # messages first
             j = -1 * i
-            m = messageList[j]
+            m = self.messages[j] # Current message
+
+            # Special Case: first message is a sent message (should be aligned on the right). Create an invisible message in column 0
+            # to align the actual message in column 1. Since this only applies to row 0, this check could probably be moved out of the
+            # for loop for efficiency
             if r == 0 and m[1] == 1:
                 ttk.Label(self.messageFrame, text=' ', width=41, wraplength=300, font=("TkFixedFont", 9), background='#cfe2f3').grid(row=0,column=0, sticky="NSW", pady=4)
                 ttk.Label(self.messageFrame, text=m[2], width=40, font=("TkFixedFont", 9), wraplength=284).grid(row=r,column=m[1], sticky="NSW", pady=4)
             else:
+                # Determine width of white background of message. If both columns have width 41 then column 1 will collide
+                # with the scroll bar
                 if m[1] == 0:
                     messageWidth = 41
                 else:
                     messageWidth = 40
+                # Create label widget to display the message
                 ttk.Label(self.messageFrame, text=m[2], width=messageWidth, font=("TkFixedFont", 9), wraplength=284).grid(row=r,column=m[1], sticky="NSW", pady=4)
             r += 1
-            
+
+        # Update canvas and scrollbar to display properly
         self.canvas.update()
         self.canvas.yview_moveto('1.0')
 
     def sendMessage(self, other=None):
         # Get text entered by user
         message = self.text.get('1.0', 'end-1c')
+        message = message.replace('\n', '')
         n = len(message)
-        if n < 1:
+        # Tried to send empty message or '\n'
+        if n < 1 or message == '\n':
+            self.text.delete('1.0', END)
+            self.text.insert('end-1c', message)
             return
-        if message[-1] == '\n':
-            message = message[:-1]
-        #TODO: Send message to server through socket here
+
+        # Get chat destination IP from database
         db = self.parent.db
         ip = db.get_ip_by_chatname(self.cName.get())
 
@@ -176,6 +194,7 @@ class ChatMenu:
         client = self.parent.client
         success = client.sendMessage(message, ip)
 
+        # Failed to send a message. Create error pop up
         if not success:
             self.parent.createPopUp(ErrorPopUp, 'Failed to send message')
             self.text.delete('1.0', END)

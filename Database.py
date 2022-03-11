@@ -339,7 +339,7 @@ def main():
     #add_message(cur, 'Hans Prieto', 0, 'Hi Hans')
     
     print_chats(cur)
-    print('Commands:\nd: delete chat\nc: create chat\nr: rename chat\nip: change IP address\ni: insert message\npc: print chats\npm: print messages\nexit: exit')
+    print('Commands:\nd: delete chat\nc: create chat\nr: rename chat\nip: change IP address\ni: insert message\nin: insert n messages\npc: print chats\npm: print messages\nexit: exit')
     while True:
         command =  input("Command: ")
         if command == "c":
@@ -372,6 +372,19 @@ def main():
                 for i in range(num):
                     message += 'a'
             add_message(cur, chat_to_add_to, int(sender), message)
+        elif command == "in":
+            chat_to_add_to = input("Insert message into which chat: ")
+            num = input("How many messages: ")
+            sender = input("0: all sent messages, 1: all received messages, 2: alternate - ")
+            minput = input("Message to be inserted: ")
+            for i in range(int(num)):
+                message = minput
+                if message.isdecimal():
+                    num = int(message)
+                    message = ''
+                    for i in range(num):
+                        message += 'a'
+                add_message(cur, chat_to_add_to, i % 2, message)
         elif command == "pm":
             chat = input("Enter chat to read from: ")
             print(get_messages(cur, chat, 100))

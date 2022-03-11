@@ -21,10 +21,15 @@ class Client:
             self.connected = True
             self.soc, self.sessionKey = server_connection
             self.rThread = create_receiving_thread(self.soc, self.sessionKey, rThreadCallback)
+        else:
+            self.soc = None
+            self.sessionKey = None
 
         self.encryptionTypes = {'plaintext': 0, 'ROT13': 1, 'vigenere': 2}
 
     def sendMessage(self, message, IP):
+        if self.soc is None:
+            return False
         uName = self.profile['uName']
         encryptionType = self.profile['preferences']['eType']
         sendSuccess = sendMessageTo(self.soc, message, IP, uName, encryptionType, self.sessionKey)
@@ -60,7 +65,8 @@ class Client:
     def disconnect(self):
         if self.rThread is not None:
             self.rThread.close()
-        disconnectServer(self.soc, self.sessionKey)
+        if self.soc is not None:
+            disconnectServer(self.soc, self.sessionKey)
 # ================================================================================================================
 
 # =============================================== Receiving Thread ===============================================
