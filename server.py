@@ -1,6 +1,7 @@
 import sys
 from cipher import *
 from socket import *
+from UserDatabase import UserDataBase
 from threading import Thread
 from datetime import datetime
 
@@ -38,13 +39,14 @@ def unpackMessage(message, sessionKey):
             pt = AES_decrypt(ct, iv, sessionKey)
         else:
             return None
-    except Exception:
+    except timeout:
         return None
 
-    fields = pt.split('\r\n')
+    fields = pt.split(b'\r\n')
 
-    if len(fields) != 5:
+    if len(fields) != 5 and len(fields) != 7:
         print('Error in unpackMessage: invalid field size')
+        print(fields)
         return None
 
     return fields
@@ -142,7 +144,7 @@ def connectionThread(serverSocket, addClientCallback, status):
             connection.settimeout(None)
 
             # Create client connection object
-            addClientCallback(connection, addr, IP, sessionKey)
+            addClientCallback(connection, addr, IP, senderPubKey, sessionKey)
         except timeout:
             print("timeout")
             connection.close()
@@ -173,19 +175,45 @@ def receivingThread(client, bufferSize, rThreadInstance):
         # Decrypt with client's session key and split header fields
         fields = unpackMessage(packet, receiving_client_key)
         if fields is None:
-            print('Decrypt failure')
             continue
 
         # Client is disconnecting
-        if fields[0] == '0':
+        if fields[0] == b'0':
             rThreadInstance.disconnect()
             break
+        elif fields[0] == b'10': # Create user account
+            db = UserDataBase()
+            username = fields[1].decode()
+            hashedPass = fields[2]
+            IP = client.IP
+            pubkeybytes = RSA_get_bytes_from_key(client.publicKey)
+            success = db.addUser(username, IP, pubkeybytes, hashedPass)
+            if success:
+                connection.send(b'50')
+            else:
+                connection.send(b'55')
+            db.disconnect()
+            continue
+        elif fields[0] == b'20':
+            username = fields[1]
+            IP = fields[2]
+
+            db = UserDataBase()
+            pubkeybytes = db.getUserPublicKey(username.decode())
+            if pubkeybytes is not None:
+                # Send pub key
+                print("sending public key")
+                connection.send(b'20\r\n' + pubkeybytes + b'\r\n0')
+            db.disconnect()
+            continue
 
         # Extract info from fields
-        receiverIP = fields[1] # Destination IP address
-        name = fields[2]
-        eType = fields[3]
-        message = fields[4]
+        receiverIP = fields[1].decode() # Destination IP address
+        name = fields[2].decode()
+        eType = fields[3].decode()
+        senderIV = fields[4]
+        senderEncKey = fields[5]
+        message = fields[6]
 
         # Get list of client connections 
         connectionsList = rThreadInstance.parent.connections
@@ -197,7 +225,9 @@ def receivingThread(client, bufferSize, rThreadInstance):
                 if client.address != address: # Prevent client from sending a message to themself
                     try:
                         # Reconstruct packet to send to destination client
-                        newPacket = '{}\r\n{}\r\n{}\r\n{}'.format(name, message, client.IP, eType)
+                        newPacket = '{}\r\n{}\r\n{}\r\n'.format(name, client.IP, eType).encode()
+                        #newPacket = '{}\r\n{}\r\n{}\r\n{}'.format(name, message, client.IP, eType)
+                        newPacket += senderIV + b'\r\n' + senderEncKey + b'\r\n' + message
                         # Encrypt new packet with destination client's session key
                         enc, iv = AES_encrypt(newPacket, client.sessionKey)
                         packetENC = iv + '\r\n'.encode() + enc
@@ -217,11 +247,12 @@ class Client_Connection:
         such as client socket, client address, client IP, client session key, and
         a timestamp.
     '''
-    def __init__(self, conn, addr, IP, sessionKey=None):
+    def __init__(self, conn, addr, IP, publicKey, sessionKey=None):
         self.socket = conn
         self.address = addr
         self.IP = IP
         self.sessionKey = sessionKey
+        self.publicKey = publicKey
 
         self.timeStamp = getTimeStamp()
 
@@ -297,8 +328,8 @@ class Server:
 
         self.receivingThreads = []
 
-    def addClient(self, connection, address, IP, sKey):
-        client = Client_Connection(connection, address, IP, sKey)
+    def addClient(self, connection, address, IP, pubkey, sKey):
+        client = Client_Connection(connection, address, IP, pubkey, sKey)
         self.connections.append(client)
         print('New Connection: {} at time: {}'.format(client, getTimeStamp()))
 

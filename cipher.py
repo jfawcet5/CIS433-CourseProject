@@ -56,6 +56,9 @@ def rot13_decrypt(enc_text):
 # ==================================================== Fernet ====================================================
 FERNET_KEY = b'wsKKhitf9F-1_oFjIUh1z-JUL7ZFqHVHUfgDo5GPG9w='
 
+def Fernet_generate_key():
+    return Fernet.generate_key()
+
 def Fernet_encrypt(plaintext, key=FERNET_KEY):
     ''' (bytes, bytes) -> bytes 
     '''
@@ -78,7 +81,7 @@ def AES_generate_key():
     return os.urandom(32)
 
 def AES_encrypt(plaintext, key=AES_KEY):
-    ''' (string, bytes) -> (bytes, bytes)
+    ''' (string/bytes, bytes) -> (bytes, bytes)
     '''
     # Generate initialization vector
     iv = os.urandom(16)
@@ -90,23 +93,26 @@ def AES_encrypt(plaintext, key=AES_KEY):
     # Where X is the hexidecimal number indicating how much padding was added
     padding = 16 - (len(plaintext) % 16) - 1
 
+    if type(plaintext) != bytes:
+        plaintext = plaintext.encode()
+
     for i in range(padding):
-        plaintext += '0'
+        plaintext += b'0'
 
     if padding + 1 > 0:
         numpadding = hex(padding).replace('0x', '')
-        plaintext += numpadding
+        plaintext += numpadding.encode()
 
     # Encrypt plaintext
     enc = aesCipher.encryptor()
 
-    ciphertext = enc.update(plaintext.encode()) + enc.finalize()
-
+    
+    ciphertext = enc.update(plaintext) + enc.finalize()
     # Return ciphertext and initialization vector
     return ciphertext, iv
 
 def AES_decrypt(ciphertext, iv, key=AES_KEY):
-    ''' (bytes, bytes, bytes) -> string
+    ''' (bytes, bytes, bytes) -> bytes
     '''
     # Create AES cipher object in Cipher Block Chaining mode
     aesCipher = Cipher(algorithms.AES(key), modes.CBC(iv))
@@ -117,13 +123,13 @@ def AES_decrypt(ciphertext, iv, key=AES_KEY):
     plaintext = dec.update(ciphertext) + dec.finalize()
 
     # Remove padding
-    pad = '0x' + plaintext.decode()[-1]
+    pad = '0x' + plaintext[-1:].decode()
     numpadding = -1 * (int(pad, 16) + 1)
 
     plaintext = plaintext[:numpadding]
 
     # Return plaintext string
-    return plaintext.decode()
+    return plaintext
 # ================================================================================================================
 
 # ===================================================== RSA ======================================================
@@ -425,6 +431,24 @@ def vig_decrypt(input_str):
             dec_str = dec_str + cur
 
     return dec_str
+# ================================================================================================================
+
+# ===================================================== Hash =====================================================
+
+def hashPassword(password, ntimes=10):
+    ''' (string, int) -> bytes
+
+        Hash password n times. This function is used to send a user's password
+        to the server and to be stored on the server's database. 
+    '''
+    p = password.encode() # Convert password to bytes for hash function
+    for i in range(ntimes):
+        d = hashes.Hash(hashes.SHA256()) # Create SHA256 hash object
+        d.update(p) # Update hash object with data to be hashed ('p')
+        p = d.finalize() # Store finalized hash in p
+
+    return p
+
 # ================================================================================================================
 
 # ===================================================== Main =====================================================

@@ -10,6 +10,7 @@ from tkinter import messagebox
 
 from Client import *
 from Database import DataBase
+from cipher import AES_generate_key, Fernet_generate_key
 
 import math
 
@@ -50,8 +51,8 @@ class MainMenu:
 
         # Iterate through chats list and create corresponding buttons
         for i in range(len(chats)):
-            num, IP, name = chats[i]
-            Button(centerFrame, text=name, bg='grey', fg='white', command=lambda cn=name : self.gotoChatMenu(cn), anchor='w').grid(row=i,column=0, padx="2", pady='2', sticky="NWES")
+            num, IP, rname, cname = chats[i]
+            Button(centerFrame, text=cname, bg='grey', fg='white', command=lambda cn=cname : self.gotoChatMenu(cn), anchor='w').grid(row=i,column=0, padx="2", pady='2', sticky="NWES")
 
         self.headerFrame = headerFrame
 
@@ -63,6 +64,123 @@ class MainMenu:
 
     def gotoPreferencesMenu(self):
         self.parent.switchFrame(PreferencesMenu, None)
+        return None
+# =======================================================================================================================================================================================
+
+# ================================================================================ Create Account Menu ==================================================================================
+class CreateAccountMenu:
+    def __init__(self, parent, other=None):
+        self.parent = parent
+        mainframe = parent.display
+        headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=100)
+        headerFrame.grid(column=0, row=0, columnspan=3, sticky='NEWS')
+        centerFrame = ttk.Frame(mainframe, style='chat.TFrame', width=600, height=600)
+        centerFrame.grid(column=0, row=1, rowspan=6, columnspan=3, sticky='NEWS')
+
+        # Configuer header frame rows and columns
+        headerFrame.rowconfigure(0, weight=1)
+        headerFrame.columnconfigure(0,weight=1)
+        headerFrame.columnconfigure(1,weight=1)
+        headerFrame.columnconfigure(2,weight=1)
+
+        # Configure center frame rows and columns
+        centerFrame.columnconfigure(0,weight=1)
+        centerFrame.columnconfigure(1,weight=1)
+        centerFrame.columnconfigure(2,weight=1)
+        centerFrame.rowconfigure(0, weight=1)
+        centerFrame.rowconfigure(1, weight=1)
+        centerFrame.rowconfigure(2, weight=1)
+        centerFrame.rowconfigure(3, weight=1)
+        centerFrame.rowconfigure(4, weight=1)
+        centerFrame.rowconfigure(5, weight=1)
+                                 
+
+        # New Account menu label
+        ttk.Label(headerFrame, text='Create Account', background='#434343', foreground='white').grid(row=0,column=1)
+
+        # Tkinter variable to store username and password entered by user
+        self.userName = StringVar()
+        self.password = StringVar()
+
+        # Commands to validate text entry for username and password
+        vcName = (self.parent.root.register(self.validateChatNameEntry), '%d', '%P')
+        vpass = (self.parent.root.register(self.validateChatNameEntry), '%d', '%P')
+
+        # Username entry field
+        ttk.Label(centerFrame, text="Username", background='#cfe2f3').grid(row=0, column=1, sticky="s", pady=2)
+        ttk.Entry(centerFrame, textvariable=self.userName, validate="key", validatecommand=vcName).grid(row=1, column=1, sticky='N', pady=2)
+
+        # Password entry field
+        ttk.Label(centerFrame, text="Password", background='#cfe2f3').grid(row=1, column=1, sticky="s", pady=2)
+        self.passwordField = ttk.Entry(centerFrame, textvariable=self.password, validate="key", validatecommand=vpass, show="*")
+        self.passwordField.grid(row=2, column=1, sticky='N', pady=2)
+
+        # Show password toggle button
+        self.showpass = BooleanVar(value=False)
+        ttk.Checkbutton(centerFrame, text='show password', command=self.showPassword, variable=self.showpass, onvalue=True, offvalue=False, style='cBox.TCheckbutton').grid(row=2, column=1, sticky="S")
+
+        # Login button
+        Button(centerFrame, text='Create Account', bg='#434343', fg='white', command=self.createAccount).grid(row=3,column=1, sticky="N", pady=2)
+
+    def validateChatNameEntry(self, action, newText):
+        # Limits length of chat name to 20 characters
+        if action == '1':
+            if len(newText) > 15:
+                return False
+            else:
+                return True
+        return True
+
+    def showPassword(self):
+        if self.showpass.get():
+            self.passwordField["show"] = ''
+        else:
+            self.passwordField["show"] = '*'
+        return None
+
+    def createAccount(self):
+        # Check username and password
+        un = self.userName.get()
+        pw = self.password.get()
+        if len(un) < 3: # Make sure username has at least 3 characters
+            self.parent.createPopUp(ErrorPopUp, 'Username must be at least 3 characters')
+            return None
+        
+        if len(pw) < 8: # Make sure password has at least 8 characters
+            self.parent.createPopUp(ErrorPopUp, 'Password must have at least 8 characters')
+            return None
+
+        # Note: The following condition 'any(map(str.isdigit, pw))' comes from:
+        # https://www.adamsmith.haus/python/answers/how-to-check-if-a-string-contains-a-number-in-python
+        if not any(map(str.isdigit, pw)):
+            self.parent.createPopUp(ErrorPopUp, 'Password must contain at least 1 number')
+            return None
+        
+        if not any(char in "!#$%&*()+,-./:;<>=?@[]^_~|" for char in pw): # Make sure password contains a special character
+            self.parent.createPopUp(ErrorPopUp, 'Password must contain at least 1 special character')
+            return None
+        
+        if not any(char.isupper() for char in pw): # Make sure password contains an upper case
+            self.parent.createPopUp(ErrorPopUp, 'Password must contain at least 1 upper case')
+            return None
+
+        # Contact server with account info
+        client = self.parent.client
+        success = client.createAccount(un, pw)
+
+        if success is None:
+            self.parent.createPopUp(ErrorPopUp, 'Server connection is required')
+            return None
+        if not success:
+            self.parent.createPopUp(ErrorPopUp, 'Username is taken')
+            return None
+        
+        # Go to main menu
+        self.gotoMainMenu()
+        return None
+
+    def gotoMainMenu(self):
+        self.parent.switchFrame(MainMenu, None)
         return None
 # =======================================================================================================================================================================================
 
@@ -192,7 +310,17 @@ class ChatMenu:
 
         # Send message to server
         client = self.parent.client
-        success = client.sendMessage(message, ip)
+
+        encryptionType = client.getPreference('eType')
+
+        encryptionKey = db.get_chat_key(self.cName.get(), encryptionType)
+        publicKey = db.get_chat_key(self.cName.get(), 4)
+
+        #publicKey = publicKey[2:][:-1].encode('latin-1').decode('unicode-escape').encode('latin-1')
+        #print(publicKey)
+        print(type(publicKey))
+        
+        success = client.sendMessage(message, ip, encryptionType, encryptionKey, publicKey)
 
         # Failed to send a message. Create error pop up
         if not success:
@@ -245,7 +373,7 @@ class NewChatMenu:
         ttk.Label(headerFrame, text='New Chat', background='#434343', foreground='white').grid(row=0,column=1)
         Button(headerFrame, text='Back', bg='#434343', fg='white', command=self.gotoMainMenu).grid(row=0,column=0, sticky="W", padx="2")
 
-        ttk.Label(centerFrame, text="To:", font=('Arial', 15), background='#525252', foreground='white').grid(row=1, column=1)
+        ttk.Label(centerFrame, text="Chat Name: ", font=('Arial', 15), background='#525252', foreground='white').grid(row=1, column=1)
         #self.userName = StringVar()
         vcName = (self.parent.root.register(self.validateChatNameEntry), '%d', '%P')
         #name = ttk.Entry(centerFrame, textvariable=self.userName, validate="key", validatecommand=validationCommand)
@@ -253,11 +381,19 @@ class NewChatMenu:
         self.receivertext = ttk.Entry(centerFrame, textvariable=self.cName, validate="key", validatecommand=vcName)
         self.receivertext.grid(row=1, column=2, sticky="EW", padx=5, pady=12)
 
-        ttk.Label(centerFrame, text="IP Address:", font=('Arial', 15), background='#525252', foreground='white').grid(row=2, column=1)
+        ttk.Label(centerFrame, text="To:", font=('Arial', 15), background='#525252', foreground='white').grid(row=2, column=1)
+        #self.userName = StringVar()
+        vcName = (self.parent.root.register(self.validateChatNameEntry), '%d', '%P')
+        #name = ttk.Entry(centerFrame, textvariable=self.userName, validate="key", validatecommand=validationCommand)
+        self.uName = StringVar()
+        self.receivertext = ttk.Entry(centerFrame, textvariable=self.uName, validate="key", validatecommand=vcName)
+        self.receivertext.grid(row=2, column=2, sticky="EW", padx=5, pady=12)
+
+        ttk.Label(centerFrame, text="IP Address:", font=('Arial', 15), background='#525252', foreground='white').grid(row=3, column=1)
         vIP = (self.parent.root.register(self.validateIPEntry), '%d', '%P')
         self.IP = StringVar()
         self.IPtext = ttk.Entry(centerFrame, textvariable=self.IP, validate="key", validatecommand=vIP)
-        self.IPtext.grid(row=2, column=2, sticky="EW", padx=5, pady=12)
+        self.IPtext.grid(row=3, column=2, sticky="EW", padx=5, pady=12)
 
         self.text = Text(footerFrame, height=1)
         #self.text.grid(row=0,column=0, columnspan=2, sticky="EW", padx=5)
@@ -290,19 +426,39 @@ class NewChatMenu:
     
     def createChat(self):
         chatName = self.cName.get()
+        receiverName = self.uName.get()
         IP = self.IP.get()
+
+        # Get other user's public key from server
+        client = self.parent.client
+        pubKey = client.getPublicKey(receiverName, IP)
+
+        if pubKey is None:
+            print("Did not receive public key")
+            return None
+        else:
+            print("Received key")
+            print(pubKey)
+            print('\n\n')
+
+        # Create private keys for different encryptions
+        vigenereKey = b'defaultvigenerekeyfornow'
+        AESKey = AES_generate_key()
+        FernetKey = Fernet_generate_key()
 
         # Store new chat in the database
         db = self.parent.db
-        success = db.create_chat(chatName, IP)
+        success = db.create_chat(chatName, IP, receiverName, (pubKey, FernetKey, AESKey, vigenereKey))
         if success == 1:
-            self.parent.createPopUp(ErrorPopUp, 'Invalid Chat Name')
+            self.parent.createPopUp(ErrorPopUp, 'Invalid User Name')
         elif success == 2:
             self.parent.createPopUp(ErrorPopUp, 'Invalid IP Address')
         elif success == 3:
             self.parent.createPopUp(ErrorPopUp, 'Chat Name: \'{}\' already exists'.format(chatName))
         elif success == 4:
             self.parent.createPopUp(ErrorPopUp, 'IP Address: \'{}\' already exists'.format(IP))
+
+        self.parent.switchFrame(MainMenu, None)
         return None
 # =========================================================================================================================================================================================
 
@@ -439,12 +595,8 @@ class PreferencesMenu:
         Button(headerFrame, text='Back', bg='#434343', fg='white', command=self.gotoMainMenu).grid(row=0,column=0, sticky="W", padx="2")
 
         ttk.Label(centerFrame, text='Username:', background='#434343', foreground='white').grid(row=0,column=0, sticky="W")
-        self.userName = StringVar()
-        validationCommand = (self.parent.root.register(self.validateInsert), '%d', '%P')
-        name = ttk.Entry(centerFrame, textvariable=self.userName, validate="key", validatecommand=validationCommand)
-        name.grid(row=1, column=0, sticky="WE")
-        name.insert(0, self.parent.client.getUserName())
-        Button(centerFrame, text='Enter', bg='#434343', fg='white', command=self.updateUserName).grid(row=1,column=1, sticky="W", padx="2")
+
+        ttk.Label(centerFrame, text=self.parent.client.getUserName(), background='white').grid(row=1, column=0, sticky="WE")
 
         ttk.Label(centerFrame, text='Encryption Type', background='#434343', foreground='white').grid(row=2,column=0, sticky="W")
         self.etypeVar = StringVar()
@@ -636,16 +788,26 @@ class UI:
 
         self.display = self.createMainFrame()
 
+        self.popUps = []
+
         # Connect to database 
         self.db = DataBase()
 
-        self.current_menu = MainMenu(self) # Create and display main menu
-
+        # Connect to server
         self.client = Client(self.onReceiveMessage)
 
-        root.protocol("WM_DELETE_WINDOW", self.closeApp)
+        if self.client.getUserName() == '':
+            self.current_menu = CreateAccountMenu(self)
+        else:
+            self.current_menu = MainMenu(self)
 
-        self.popUps = []
+        if not self.client.connected:
+            self.createPopUp(ErrorPopUp, 'Failed to connect to server')
+        #self.current_menu = MainMenu(self) # Create and display main menu
+
+        #self.client = Client(self.onReceiveMessage)
+
+        root.protocol("WM_DELETE_WINDOW", self.closeApp)
 
         self.buffer = []
 
@@ -703,7 +865,7 @@ class UI:
         if chat is not None:
             # Add message to chat
             print("chat exists")
-            self.db.store_received_message(chat[2], messageFields[1])
+            self.db.store_received_message(chat[3], messageFields[1])
             if type(self.current_menu) == ChatMenu:
                 self.current_menu.displayMessages()
         else:

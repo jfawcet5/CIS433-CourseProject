@@ -21,8 +21,11 @@ class DataBase:
     def get_n_messages(self, chat_name, n):
         return get_messages(self.cursor, chat_name, n)
 
-    def create_chat(self, chat_name, IP):
-        return create_chat(self.cursor, chat_name, IP)
+    def get_chat_key(self, chat_name, keyType):
+        return get_chat_key(self.cursor, chat_name, keyType)
+
+    def create_chat(self, chat_name, receiverIP, receiverName, keys):
+        return create_chat(self.cursor, chat_name, receiverIP, receiverName, keys)
 
     def delete_chat(self, chat_name):
         return delete_chat(self.cursor, chat_name)
@@ -64,6 +67,7 @@ def connect_database():
     con = sqlite3.connect('data/MessageDB.db')
     cur = con.cursor()
     init_chats_table(cur)
+    create_keys_table(cur)
     return con, cur
     
 def init_chats_table(cur):
@@ -76,7 +80,7 @@ def init_chats_table(cur):
     if cur.fetchone()[0] == 0:
         print(f"Creating table: chats")
         command = '''CREATE TABLE chats
-                        (chatNum INTEGER, receiverIP TEXT, chatName TEXT)'''
+                        (chatNum INTEGER, receiverIP TEXT, receiverName TEXT, chatName TEXT)'''
         cur.execute(command)
     else:
         print(f"Table: chats exists")
@@ -103,7 +107,7 @@ def get_ip_address(cur, chat_name):
         return None
 
 # Create a new chat
-def create_chat(cur, chat_name, receiverIP):
+def create_chat(cur, chat_name, receiverIP, receiverName, keys):
     # Input validation
     if not is_valid_chatname(chat_name):
         return 1
@@ -114,6 +118,11 @@ def create_chat(cur, chat_name, receiverIP):
         return 3
     if get_chat_by_ip(cur, receiverIP) is not None:
         return 4
+
+    pubkey, fernetkey, aeskey, vigenerekey = keys
+
+    print(pubkey)
+    print(type(pubkey))
 
     # Get largest chatNum
     cur.execute(''' SELECT *
@@ -127,12 +136,57 @@ def create_chat(cur, chat_name, receiverIP):
     else:
         newv = val[0] + 1
     # Create new chat with appropriate values
-    cur.execute(''' INSERT INTO chats (chatNum, receiverIP, chatName)
-                    VALUES (?, ?, ?)
-                ''', (newv, receiverIP, chat_name))
+    cur.execute(''' INSERT INTO chats (chatNum, receiverIP, receiverName, chatName)
+                    VALUES (?, ?, ?, ?)
+                ''', (newv, receiverIP, receiverName, chat_name))
     # Create corresponding message table
     create_message_table(cur, chat_name)
+    insert_keys(cur, chat_name, keys)
     return 0
+
+def create_keys_table(cur):
+    #name = f'chat{chat_num}'
+    # Check if table 'users' already exists
+    cur.execute('''SELECT count(name) FROM sqlite_master WHERE type='table'
+                   AND name='keys'
+                ''')
+
+    # If table 'table_name' does not exist, create it 
+    if cur.fetchone()[0] == 0:
+        print("Creating table: keys")
+        command = f'''CREATE TABLE keys
+                        (chatName TEXT, RSAPubKey BLOB, FernetKey BLOB, AESKey BLOB, VigenereKey BLOB)'''
+        cur.execute(command)
+    else:
+        print("Table: keys exists")
+
+#=====================================================================================================================================
+def insert_keys(cur, chat_name, keys):
+    print(f'Adding message to table: {chat_name}')
+    cur.execute(''' SELECT *
+                    FROM keys
+                    WHERE chatName=?
+                ''', (chat_name,)
+                )
+
+    if cur.fetchone() is not None:
+        print(f'chat: {chat_name} does not exist')
+        return False
+    pubkey, fernetkey, aeskey, vigenerekey = keys
+    
+    cur.execute(''' INSERT INTO keys (chatName, RSAPubKey, FernetKey, AESKey, VigenereKey)
+                    VALUES (?, ?, ?, ?, ?)
+               ''', (chat_name, pubkey, fernetkey, aeskey, vigenerekey))
+    return True
+
+def print_keys(cur):
+    cur.execute(''' SELECT *
+                    FROM keys
+                '''
+                )
+    val = cur.fetchall()
+    for c in val:
+        print(c)
 
 # deletes a chat
 def delete_chat(cur, chat_name):
@@ -222,6 +276,31 @@ def change_ip_address(cur, cur_chat_name, new_ip_address):
                 )
 
     return 0
+
+# Gets the specified key from the specified chat  receiverPubKey, FernetKey, AESKey, VigenereKey
+def get_chat_key(cur, chat_name, keyType):
+    print(keyType, type(keyType))
+    if keyType == 2:
+        index = 4
+    elif keyType == 3:
+        index = 3
+    elif keyType == 4:
+        index = 1
+    elif keyType == 5:
+        index = 2
+    else:
+        return None
+
+    cur.execute(''' SELECT *
+                    FROM keys 
+                    WHERE chatName=?
+                ''', (chat_name,)
+                )
+
+    val = cur.fetchone()
+    if val is not None:
+        return val[index]
+    return val
 
 # Print out the chats table
 def print_chats(cur):
@@ -339,7 +418,7 @@ def main():
     #add_message(cur, 'Hans Prieto', 0, 'Hi Hans')
     
     print_chats(cur)
-    print('Commands:\nd: delete chat\nc: create chat\nr: rename chat\nip: change IP address\ni: insert message\nin: insert n messages\npc: print chats\npm: print messages\nexit: exit')
+    print('Commands:\nd: delete chat\nc: create chat\nr: rename chat\nip: change IP address\ni: insert message\nin: insert n messages\npc: print chats\npm: print messages\npk: print keys\nexit: exit')
     while True:
         command =  input("Command: ")
         if command == "c":
@@ -389,6 +468,8 @@ def main():
             chat = input("Enter chat to read from: ")
             print(get_messages(cur, chat, 100))
             pass
+        elif command == "pk":
+            print_keys(cur)
         else:
             break
 

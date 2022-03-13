@@ -4,6 +4,7 @@ from cipher import *
 import time
 import traceback
 import json
+import random
 
 serverName = "54.144.253.235"
 #serverName = "127.0.0.1"
@@ -21,18 +22,18 @@ class Client:
             self.connected = True
             self.soc, self.sessionKey = server_connection
             self.rThread = create_receiving_thread(self.soc, self.sessionKey, rThreadCallback)
+            self.connected = True
         else:
             self.soc = None
             self.sessionKey = None
 
-        self.encryptionTypes = {'plaintext': 0, 'ROT13': 1, 'vigenere': 2}
+        self.encryptionTypes = {'plaintext': 0, 'ROT13': 1, 'vigenere': 2, 'AES': 3, 'RSA': 4, 'Fernet': 5}
 
-    def sendMessage(self, message, IP):
+    def sendMessage(self, message, IP, etype, eKey, publicKey):
         if self.soc is None:
             return False
         uName = self.profile['uName']
-        encryptionType = self.profile['preferences']['eType']
-        sendSuccess = sendMessageTo(self.soc, message, IP, uName, encryptionType, self.sessionKey)
+        sendSuccess = sendMessageTo(self.soc, message, IP, uName, etype, eKey, publicKey, self.sessionKey)
         time.sleep(.25)
         recvAck = self.rThread.status.ACK
         status = sendSuccess and recvAck
@@ -40,8 +41,31 @@ class Client:
         print(f'Message Sent to Server: {sendSuccess}, Received ACK: {recvAck}')
         return status
 
+    def getPublicKey(self, receiverName, receiverIP):
+        sendSuccess = getPublicKeyFromServer(self.soc, self.sessionKey, receiverName, receiverIP)
+
+        self.rThread.status.ACK = None
+        time.sleep(1)
+        pubkeybytes = self.rThread.status.ACK
+        self.rThread.status.ACK = False
+        return pubkeybytes
+
     def readMessage(self, message):
         return message
+
+    def createAccount(self, username, password):
+        if self.soc is None:
+            return None
+        sendSuccess = createUserAccount(self.soc, self.sessionKey, username, password)
+
+        time.sleep(2)
+        recvAck = self.rThread.status.ACK
+        status = sendSuccess and recvAck
+        self.rThread.status.ACK = False
+        
+        if status:
+            self.updateUserName(username)
+        return status
 
     def getUserName(self):
         return self.profile['uName']
@@ -96,17 +120,29 @@ def receiving_thread(conn, bufferSize, status, sessionKey, rCallback=None):
         # Decrypt packet and separate the values
         fields = unPack(packet, sessionKey)
         if fields is None:
+            print("Fields is none")
             continue
-        if len(fields) != 4:
+        if len(fields) != 6:
+            print('Invalid message')
             # Check for ACK from server
             if fields[0] == b'50':
                 print("ACK")
                 status.ACK = True
+            if fields[0] == b'20':
+                print("received key")
+                #print(fields[1])
+                status.ACK = fields[1]
             continue
         
-        senderName = fields[0]
-        message = fields[1]
-        ip = fields[2]
+        senderName = fields[0].decode()
+        ip = fields[1].decode()
+        encryptionType = fields[2].decode()
+
+        IV = fields[3]
+        Key = fields[4]
+        encMessage = fields[5]
+
+        message = stripEnc(encryptionType, IV, Key, encMessage)
         
         if rCallback is not None:
             rCallback((ip, message, senderName))
@@ -166,6 +202,33 @@ def create_receiving_thread(cSock, sessionKey, callback=None):
     if rThread is None:
         return None
     return ReceivingThread(rThread, status)
+
+def stripEnc(encryptionType, IV, encKey, encMessage):
+    privKey = RSA_load_private_key()
+
+    
+    
+    if encryptionType == '0':
+        return encMessage.decode()
+
+    elif encryptionType == '1':
+        message = rot13_decrypt(encMessage.decode())
+
+    elif encryptionType == '2':
+        message = vig_decrypt(encMessage.decode())
+
+    elif encryptionType == '3':
+        key = RSA_private_key_decrypt(encKey, privKey)
+        message = AES_decrypt(encMessage, IV, key).decode()
+
+    elif encryptionType == '4':
+        message = RSA_private_key_decrypt(encMessage, privKey).decode()
+
+    elif encryptionType == '5':
+        key = RSA_private_key_decrypt(encKey, privKey)
+        message = Fernet_decrypt(encMessage, key)
+    
+    return message
 
 def connectToServer():
     print('Connecting to server ... ', end='')
@@ -257,13 +320,43 @@ def unPack(message, sessionKey):
     # Decrypt message with client/server AES session key
     plaintext = AES_decrypt(fields[1], fields[0], sessionKey)
     # Split and return message header fields
-    return plaintext.split('\r\n')
+    return plaintext.split(b'\r\n')
 
-def sendMessageTo(soc, message, destination, uName, encryptionType, sessionKey):
+def sendMessageTo(soc, message, destination, uName, encryptionType, encryptionKey, publicKey, sessionKey):
     # Encrypt message
-    # Create Packet
-    packet = f'200\r\n{destination}\r\n{uName}\r\n{encryptionType}\r\n{message}'
+    iv = b'0'
 
+    publicKey = RSA_get_key_from_bytes(publicKey)
+    
+    if encryptionType == 0: # Plaintext
+        encMessage = message.encode()
+        encKey = b'0'
+
+    elif encryptionType == 1: # ROT13
+        encMessage = rot13_encrypt(message).encode()
+        encKey = b'0'
+
+    elif encryptionType == 2: # Vigenere
+        encMessage = vig_encrypt(message).encode()
+        encKey = RSA_public_key_encrypt(encryptionKey, publicKey)
+
+    elif encryptionType == 3: # AES
+        encMessage, iv = AES_encrypt(message, encryptionKey)
+        encKey = RSA_public_key_encrypt(encryptionKey, publicKey)
+
+    elif encryptionType == 4: # RSA
+        rsaKey = RSA_get_key_from_bytes(encryptionKey)
+        encMessage = RSA_public_key_encrypt(message, rsaKey)
+        encKey = b'0'
+
+    elif encryptionType == 5: # Fernet
+        encMessage = Fernet_encrypt(message.encode(), encryptionKey)
+        encKey = RSA_public_key_encrypt(encryptionKey, publicKey)
+
+    # Create Packet
+    #packet = f'200\r\n{destination}\r\n{uName}\r\n{encryptionType}\r\n{message}'
+    packet = f'200\r\n{destination}\r\n{uName}\r\n{encryptionType}'.encode() + b'\r\n' + iv + b'\r\n' + encKey + b'\r\n' + encMessage
+    print(packet)
     # Encrypt packet with client/server session key
     packet_enc, iv = AES_encrypt(packet, sessionKey)
 
@@ -277,6 +370,50 @@ def sendMessageTo(soc, message, destination, uName, encryptionType, sessionKey):
         print("Failed to send message")
         return False
 
+    return True
+
+def createUserAccount(soc, sessionKey, username, password):
+    # Create hash of password
+    hashedPass = hashPassword(password)
+
+    # Sequence number
+    seq = random.randint(0, (2**32) - 1)
+    
+    # Create packet with username and hash password
+    packet = b'10\r\n' + username.encode() + b'\r\n' + hashedPass + b'\r\n' + str(seq).encode() + b'\r\n0'
+
+    # Encrypt packet with client/server session key
+    packet_enc, iv = AES_encrypt(packet, sessionKey)
+
+    new_packet = iv + b'\r\n' + packet_enc
+
+    # Send packet to server
+    soc.settimeout(3)
+    try:
+        soc.send(new_packet)
+    except timeout:
+        print("Failed to send message")
+        return False
+    soc.settimeout(1)
+    # If server accept, return status OK
+    return True
+
+def getPublicKeyFromServer(soc, sessionKey, receiverName, receiverIP):
+    # Create packet
+    packet = b'20\r\n' + f"{receiverName}\r\n{receiverIP}".encode() + b'\r\n0\r\n0'
+    # Encrypt packet
+    packet_enc, iv = AES_encrypt(packet, sessionKey)
+
+    new_packet = iv + b'\r\n' + packet_enc
+
+    # Send packet to server
+    soc.settimeout(3)
+    try:
+        soc.send(new_packet)
+    except timeout:
+        print("Failed to send message")
+        return False
+    soc.settimeout(1)
     return True
 
 def disconnectServer(soc, sessionKey):
