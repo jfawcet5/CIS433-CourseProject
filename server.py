@@ -219,20 +219,20 @@ def receivingThread(client, bufferSize, rThreadInstance):
         connectionsList = rThreadInstance.parent.connections
 
         # Search for destination in client connections list
-        for client in connectionsList:
-            IP = client.IP
+        for conn in connectionsList:
+            IP = conn.IP
             if IP == receiverIP: #Destination IP matches client IP
-                if client.address != address: # Prevent client from sending a message to themself
+                if conn.address != address: # Prevent client from sending a message to themself
                     try:
                         # Reconstruct packet to send to destination client
                         newPacket = '{}\r\n{}\r\n{}\r\n'.format(name, client.IP, eType).encode()
                         #newPacket = '{}\r\n{}\r\n{}\r\n{}'.format(name, message, client.IP, eType)
                         newPacket += senderIV + b'\r\n' + senderEncKey + b'\r\n' + message
                         # Encrypt new packet with destination client's session key
-                        enc, iv = AES_encrypt(newPacket, client.sessionKey)
+                        enc, iv = AES_encrypt(newPacket, conn.sessionKey)
                         packetENC = iv + '\r\n'.encode() + enc
                         # Forward message to destination
-                        client.socket.send(packetENC)
+                        conn.socket.send(packetENC)
                         # Send ACK to original client
                         connection.send('50'.encode())
                         continue
