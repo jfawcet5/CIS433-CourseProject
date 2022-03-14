@@ -1,6 +1,15 @@
 '''
+    Secure Messenger Application UI
 
+    Authors: Hans Prieto, Joshua Fawcett
+
+    This module implements classes necessary to display and interact with the secure
+    messenger application. Running this script will execute the application
+    
     Sources:
+            Most tkinter code/concepts came from: http://tkdocs.com/tutorial/concepts.html
+                                                  https://anzeljg.github.io/rin2/book2/2405/docs/tkinter/index.html
+
             Scrollbar implementation: https://blog.teclado.com/tkinter-scrollable-frames/
 '''
 
@@ -17,18 +26,20 @@ import math
 # ====================================================================================== Main Menu ======================================================================================
 class MainMenu:
     def __init__(self, parent, other=None):
-        self.parent = parent
-        mainframe = parent.display
-        headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=100)
+        self.parent = parent # Reference to parent (interface manager)
+        mainframe = parent.display # Frame that the main menu will be displayed on
+        headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=100) # Header frame to display banner at top and its contents
         headerFrame.grid(column=0, row=0, columnspan=3, sticky='NEWS')
-        centerFrame = ttk.Frame(mainframe, style='chat.TFrame', width=600, height=600)
+        centerFrame = ttk.Frame(mainframe, style='chat.TFrame', width=600, height=600) # Center frame to display list of chats
         centerFrame.grid(column=0, row=1, rowspan=6, columnspan=3, sticky='NEWS')
 
+        # Configure header frame rows and columns
         headerFrame.rowconfigure(0, weight=1)
         headerFrame.columnconfigure(0,weight=1)
         headerFrame.columnconfigure(1,weight=1)
         headerFrame.columnconfigure(2,weight=1)
 
+        # Configure center frame rows and columns
         centerFrame.columnconfigure(0,weight=1)
         centerFrame.rowconfigure(0, weight=1)
         centerFrame.rowconfigure(1, weight=1)
@@ -40,7 +51,7 @@ class MainMenu:
         centerFrame.rowconfigure(7, weight=1)
         centerFrame.rowconfigure(8, weight=1)
                                  
-
+        # Create label 'Chats', 'new chat' button, and 'preferences' button
         ttk.Label(headerFrame, text='Chats', background='#434343', foreground='white').grid(row=0,column=1)
         Button(headerFrame, text='New Chat', bg='#434343', fg='white', command=self.gotoNewChatMenu).grid(row=0,column=0, sticky="W", padx="2")
         Button(headerFrame, text='Preferences', bg='#434343', fg='white', command=self.gotoPreferencesMenu).grid(row=0,column=2, sticky="E", padx="2")
@@ -49,7 +60,7 @@ class MainMenu:
         db = self.parent.db
         chats = db.get_chats_list()
 
-        # Iterate through chats list and create corresponding buttons
+        # Iterate through chats list and create corresponding chat buttons
         for i in range(len(chats)):
             num, IP, rname, cname = chats[i]
             Button(centerFrame, text=cname, bg='grey', fg='white', command=lambda cn=cname : self.gotoChatMenu(cn), anchor='w').grid(row=i,column=0, padx="2", pady='2', sticky="NWES")
@@ -57,12 +68,15 @@ class MainMenu:
         self.headerFrame = headerFrame
 
     def gotoChatMenu(self, chatname):
+        # Change menu from main menu to chat menu
         self.parent.switchFrame(ChatMenu, chatname)
 
     def gotoNewChatMenu(self):
+        # Change menu from main menu to new chat menu
         self.parent.switchFrame(NewChatMenu, None)
 
     def gotoPreferencesMenu(self):
+        # Change menu from main menu to preferences menu
         self.parent.switchFrame(PreferencesMenu, None)
         return None
 # =======================================================================================================================================================================================
@@ -70,14 +84,14 @@ class MainMenu:
 # ================================================================================ Create Account Menu ==================================================================================
 class CreateAccountMenu:
     def __init__(self, parent, other=None):
-        self.parent = parent
-        mainframe = parent.display
-        headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=100)
+        self.parent = parent # Reference to parent (interface manager)
+        mainframe = parent.display # Frame that the create account menu will be displayed on
+        headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=100) # Header frame to display banner at top and its contents
         headerFrame.grid(column=0, row=0, columnspan=3, sticky='NEWS')
-        centerFrame = ttk.Frame(mainframe, style='chat.TFrame', width=600, height=600)
+        centerFrame = ttk.Frame(mainframe, style='chat.TFrame', width=600, height=600) # Center frame to display username/password entry fields
         centerFrame.grid(column=0, row=1, rowspan=6, columnspan=3, sticky='NEWS')
 
-        # Configuer header frame rows and columns
+        # Configure header frame rows and columns
         headerFrame.rowconfigure(0, weight=1)
         headerFrame.columnconfigure(0,weight=1)
         headerFrame.columnconfigure(1,weight=1)
@@ -95,10 +109,10 @@ class CreateAccountMenu:
         centerFrame.rowconfigure(5, weight=1)
                                  
 
-        # New Account menu label
+        # New account menu label
         ttk.Label(headerFrame, text='Create Account', background='#434343', foreground='white').grid(row=0,column=1)
 
-        # Tkinter variable to store username and password entered by user
+        # Tkinter variables to store username and password entered by user
         self.userName = StringVar()
         self.password = StringVar()
 
@@ -123,7 +137,7 @@ class CreateAccountMenu:
         Button(centerFrame, text='Create Account', bg='#434343', fg='white', command=self.createAccount).grid(row=3,column=1, sticky="N", pady=2)
 
     def validateChatNameEntry(self, action, newText):
-        # Limits length of chat name to 20 characters
+        # Limits length of username and password to 15 characters
         if action == '1':
             if len(newText) > 15:
                 return False
@@ -132,6 +146,7 @@ class CreateAccountMenu:
         return True
 
     def showPassword(self):
+        # Show or hide the password entry based on value of 'showpass' check button
         if self.showpass.get():
             self.passwordField["show"] = ''
         else:
@@ -152,7 +167,7 @@ class CreateAccountMenu:
 
         # Note: The following condition 'any(map(str.isdigit, pw))' comes from:
         # https://www.adamsmith.haus/python/answers/how-to-check-if-a-string-contains-a-number-in-python
-        if not any(map(str.isdigit, pw)):
+        if not any(map(str.isdigit, pw)): # Make sure password contains at least 1 number
             self.parent.createPopUp(ErrorPopUp, 'Password must contain at least 1 number')
             return None
         
@@ -164,22 +179,23 @@ class CreateAccountMenu:
             self.parent.createPopUp(ErrorPopUp, 'Password must contain at least 1 upper case')
             return None
 
-        # Contact server with account info
+        # Contact server with new account info
         client = self.parent.client
         success = client.createAccount(un, pw)
 
-        if success is None:
+        if success is None: # Server did not receive account info
             self.parent.createPopUp(ErrorPopUp, 'Server connection is required')
             return None
-        if not success:
+        if not success: # Server responded with 'user name taken' status code
             self.parent.createPopUp(ErrorPopUp, 'Username is taken')
             return None
         
-        # Go to main menu
+        # Successful account creation. Now go to main menu
         self.gotoMainMenu()
         return None
 
     def gotoMainMenu(self):
+        # Switch menu from new account menu to main menu
         self.parent.switchFrame(MainMenu, None)
         return None
 # =======================================================================================================================================================================================
@@ -187,21 +203,23 @@ class CreateAccountMenu:
 # ====================================================================================== Chat Menu ======================================================================================
 class ChatMenu:
     def __init__(self, parent, chatname):
-        self.parent = parent
-        mainframe = parent.display
-        headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=50)
+        self.parent = parent # Reference to parent (interface manager)
+        mainframe = parent.display # Frame that the chats menu will be displayed on
+        headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=50) # Header frame to display banner at top and its contents
         headerFrame.grid(column=0, row=0, columnspan=3, sticky='NEWS')
-        footerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=50)
+        footerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=50) # Footer frame to display message entry field
         footerFrame.grid(column=0, row=6, columnspan=2, sticky='NEWS')
-        centerFrame = ttk.Frame(mainframe, width=600, height=600)
+        centerFrame = ttk.Frame(mainframe, width=600, height=600) # Center frame to display messages
         centerFrame.grid(column=0, row=1, rowspan=5, columnspan=3, sticky='NEWS')
         centerFrame.grid_propagate(0)
 
+        # Configure header frame rows and columns
         headerFrame.rowconfigure(0, weight=1)
         headerFrame.columnconfigure(0,weight=1)
         headerFrame.columnconfigure(1,weight=1)
         headerFrame.columnconfigure(2,weight=1)
 
+        # Configure footer frame rows and columns
         footerFrame.rowconfigure(0, weight=1)
         footerFrame.columnconfigure(0,weight=1)
         footerFrame.columnconfigure(1,weight=1)
@@ -216,7 +234,7 @@ class ChatMenu:
         self.text.grid(row=0,column=0, sticky="EW", padx=5)
         Button(footerFrame, text='Send', bg='#434343', fg='white', command=self.sendMessage).grid(row=0,column=2, sticky="EW", padx="2")
 
-        # Display messages in center of screen and create scroll bar
+        # Display messages in center of screen and create scroll bar (See sources for scrollbar reference)
         canvas = Canvas(centerFrame, width=596, height=616, background='#cfe2f3')
         canvas.grid(row=0,column=0)
 
@@ -236,14 +254,14 @@ class ChatMenu:
         self.headerFrame = headerFrame
         self.centerFrame = centerFrame
 
-        # Bind <return> button with sendmessage function
+        # Bind <return> keyboard key with sendmessage function
         self.parent.root.bind('<Return>', self.sendMessage)
 
-        # Store chat name in tkinter StringVar
+        # Store chat name in tkinter StringVar for future use
         self.cName = StringVar()
         self.cName.set(chatname)
 
-        # Initialize messages from database
+        # Initialize messages from database and display them to the center frame
         self.displayMessages()
 
     def gotoMainMenu(self):
@@ -257,18 +275,17 @@ class ChatMenu:
         self.messages = db.get_n_messages(self.cName.get(), math.inf)
         n = len(self.messages)
 
-        # Clear message frame by destroying all child label widgets
+        # Clear message frame (delete previously displayed messages) by destroying all child label widgets
         for widget in self.messageFrame.winfo_children():
             widget.destroy()
 
         # Reset message frame grid
         self.messageFrame.grid_forget()
                 
-        r = 0 # Current row to display message on
+        r = 0 # Current row to display message on (Each message is displayed on a new row)
         
         for i in range(n, 0, -1):
-            # j is index into message list. Reads through messages backwards to display newest
-            # messages first
+            # j is index into message list
             j = -1 * i
             m = self.messages[j] # Current message
 
@@ -287,16 +304,16 @@ class ChatMenu:
                     messageWidth = 40
                 # Create label widget to display the message
                 ttk.Label(self.messageFrame, text=m[2], width=messageWidth, font=("TkFixedFont", 9), wraplength=284).grid(row=r,column=m[1], sticky="NSW", pady=4)
-            r += 1
+            r += 1 # Increase row
 
-        # Update canvas and scrollbar to display properly
+        # Update canvas and scrollbar to display and function properly
         self.canvas.update()
         self.canvas.yview_moveto('1.0')
 
     def sendMessage(self, other=None):
         # Get text entered by user
         message = self.text.get('1.0', 'end-1c')
-        message = message.replace('\n', '')
+        message = message.replace('\n', '') # Replace newline if user sent message using <return> key
         n = len(message)
         # Tried to send empty message or '\n'
         if n < 1 or message == '\n':
@@ -311,15 +328,15 @@ class ChatMenu:
         # Send message to server
         client = self.parent.client
 
+        # Get encryption type from user preferences
         encryptionType = client.getPreference('eType')
 
+        # Get the encryption key for the selected encryption type
         encryptionKey = db.get_chat_key(self.cName.get(), encryptionType)
+        # Get the receiver's public key 
         publicKey = db.get_chat_key(self.cName.get(), 4)
 
-        #publicKey = publicKey[2:][:-1].encode('latin-1').decode('unicode-escape').encode('latin-1')
-        #print(publicKey)
-        print(type(publicKey))
-        
+        # Send message
         success = client.sendMessage(message, ip, encryptionType, encryptionKey, publicKey)
 
         # Failed to send a message. Create error pop up
@@ -329,16 +346,17 @@ class ChatMenu:
             self.text.insert('end-1c', message)
             return None
 
-        # Store the sent message in the database
+        # Server forwarded message. Store the sent message in the database
         n = db.store_sent_message(self.cName.get(), message)
-        # Add message to message 'buffer'
+        # Add message to message 'buffer' for display
         self.messages.append((n, 1, message))
         # Display messages to screen
         self.displayMessages()
-        # Delete message from prompt
+        # Delete message from message entry field
         self.text.delete('1.0', END)
         
     def gotoSettingsMenu(self):
+        # Switch from chat menu to 'chat settings' menu
         self.parent.switchFrame(SettingsMenu, self.cName.get())
         return None
 # =========================================================================================================================================================================================
@@ -346,49 +364,52 @@ class ChatMenu:
 # ===================================================================================== New Chat Menu =====================================================================================
 class NewChatMenu:
     def __init__(self, parent, other=None):
-        self.parent = parent
-        mainframe = parent.display
-        headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=100)
+        self.parent = parent # Reference to parent (interface manager)
+        mainframe = parent.display # Frame that the new chat menu will be displayed on
+        headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=100) # Header frame to display banner at top and its contents
         headerFrame.grid(column=0, row=0, columnspan=3, sticky='NEWS')
-        centerFrame = ttk.Frame(mainframe, style='newchat.TFrame', width=600, height=600)
+        centerFrame = ttk.Frame(mainframe, style='newchat.TFrame', width=600, height=600) # Center frame to display chat info entry fields (chat name, receiver username, receiver IP)
         centerFrame.grid(column=0, row=1, rowspan=6, columnspan=3, sticky='NEWS')
-        footerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=50)
+        footerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=50) # Footer frame to display 'create' button
         footerFrame.grid(column=0, row=6, columnspan=3, sticky='NEWS')
 
+        # Configure header frame rows and columns
         headerFrame.rowconfigure(0, weight=1)
         headerFrame.columnconfigure(0,weight=1)
         headerFrame.columnconfigure(1,weight=1)
         headerFrame.columnconfigure(2,weight=1)
 
+        # Configure center frame columns
         centerFrame.columnconfigure(0,weight=1)
         centerFrame.columnconfigure(1,weight=0)
         centerFrame.columnconfigure(2,weight=0)
         centerFrame.columnconfigure(3,weight=1)
 
+        # Configure footer frame rows and columns
         footerFrame.rowconfigure(0, weight=1)
         footerFrame.columnconfigure(0,weight=1)
         footerFrame.columnconfigure(1,weight=1)
         footerFrame.columnconfigure(2,weight=1)
 
+        # Display 'New chat' menu label and back button
         ttk.Label(headerFrame, text='New Chat', background='#434343', foreground='white').grid(row=0,column=1)
         Button(headerFrame, text='Back', bg='#434343', fg='white', command=self.gotoMainMenu).grid(row=0,column=0, sticky="W", padx="2")
 
+        # Chat name entry field
         ttk.Label(centerFrame, text="Chat Name: ", font=('Arial', 15), background='#525252', foreground='white').grid(row=1, column=1)
-        #self.userName = StringVar()
         vcName = (self.parent.root.register(self.validateChatNameEntry), '%d', '%P')
-        #name = ttk.Entry(centerFrame, textvariable=self.userName, validate="key", validatecommand=validationCommand)
         self.cName = StringVar()
-        self.receivertext = ttk.Entry(centerFrame, textvariable=self.cName, validate="key", validatecommand=vcName)
-        self.receivertext.grid(row=1, column=2, sticky="EW", padx=5, pady=12)
+        self.chatname = ttk.Entry(centerFrame, textvariable=self.cName, validate="key", validatecommand=vcName)
+        self.chatname.grid(row=1, column=2, sticky="EW", padx=5, pady=12)
 
+        # Receiver username ('to') entry field
         ttk.Label(centerFrame, text="To:", font=('Arial', 15), background='#525252', foreground='white').grid(row=2, column=1)
-        #self.userName = StringVar()
         vcName = (self.parent.root.register(self.validateChatNameEntry), '%d', '%P')
-        #name = ttk.Entry(centerFrame, textvariable=self.userName, validate="key", validatecommand=validationCommand)
         self.uName = StringVar()
         self.receivertext = ttk.Entry(centerFrame, textvariable=self.uName, validate="key", validatecommand=vcName)
         self.receivertext.grid(row=2, column=2, sticky="EW", padx=5, pady=12)
 
+        # Receiver IP entry field
         ttk.Label(centerFrame, text="IP Address:", font=('Arial', 15), background='#525252', foreground='white').grid(row=3, column=1)
         vIP = (self.parent.root.register(self.validateIPEntry), '%d', '%P')
         self.IP = StringVar()
@@ -413,33 +434,31 @@ class NewChatMenu:
         return True
 
     def validateIPEntry(self, action, newText):
-        # Limits length of chat name to 20 characters
         if action == '1':
-            # longest ip have form: 255.255.255.255
+            # longest ip have form: 255.255.255.255 => 15 characters
             if len(newText) > 15:
                 return False
-            elif len(newText.split('.')) > 4:
+            elif len(newText.split('.')) > 4: # Cannot enter more than 4 octets
                 return False
             else:
                 return True
         return True
     
     def createChat(self):
+        # Get entered chat name, receiver username, and receiver IP
         chatName = self.cName.get()
         receiverName = self.uName.get()
         IP = self.IP.get()
 
-        # Get other user's public key from server
+        # Get receiver's public key from server
         client = self.parent.client
         pubKey = client.getPublicKey(receiverName, IP)
 
+        # Make sure a key was received
         if pubKey is None:
-            print("Did not receive public key")
+            # If not public key was received, create error message prompting user to enter valid username
+            self.parent.createPopUp(ErrorPopUp, 'Did not receive public key. Verify that \'to\' contains valid username') 
             return None
-        else:
-            print("Received key")
-            print(pubKey)
-            print('\n\n')
 
         # Create private keys for different encryptions
         vigenereKey = b'defaultvigenerekeyfornow'
@@ -465,7 +484,7 @@ class NewChatMenu:
 # ===================================================================================== Settings Menu =====================================================================================
 class SettingsMenu:
     def __init__(self, parent, chatname):
-        self.parent = parent
+        self.parent = parent 
         self.chatname = chatname
         mainframe = parent.display
         headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=100)
@@ -568,18 +587,20 @@ class SettingsMenu:
 # ==================================================================================== Preferences Menu ===================================================================================
 class PreferencesMenu:
     def __init__(self, parent, other=None):
-        self.parent = parent
-        mainframe = parent.display
-        headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=100)
+        self.parent = parent # Reference to parent (interface manager)
+        mainframe = parent.display # Frame that the chats menu will be displayed on
+        headerFrame = ttk.Frame(mainframe, style='header.TFrame', width=600, height=100) # Header frame to display banner at top and its contents
         headerFrame.grid(column=0, row=0, columnspan=3, sticky='NEWS')
-        centerFrame = ttk.Frame(mainframe, style='chat.TFrame', height=600)
+        centerFrame = ttk.Frame(mainframe, style='chat.TFrame', height=600) # Center frame to display preferences
         centerFrame.grid(column=0, row=1, sticky='NEWS')
 
+        # Configure header frame rows and columns
         headerFrame.rowconfigure(0, weight=1)
         headerFrame.columnconfigure(0,weight=1)
         headerFrame.columnconfigure(1,weight=1)
         headerFrame.columnconfigure(2,weight=1)
 
+        # Configure center frame rows and columns
         centerFrame.columnconfigure(0,weight=1)
         centerFrame.rowconfigure(0, weight=1)
         centerFrame.rowconfigure(1, weight=1)
@@ -591,13 +612,15 @@ class PreferencesMenu:
         centerFrame.rowconfigure(7, weight=1)
         centerFrame.rowconfigure(8, weight=1)
 
+        # Display 'preferences' menu label and back button
         ttk.Label(headerFrame, text='Preferences', background='#434343', foreground='white').grid(row=0,column=1)
         Button(headerFrame, text='Back', bg='#434343', fg='white', command=self.gotoMainMenu).grid(row=0,column=0, sticky="W", padx="2")
 
+        # Display user's username
         ttk.Label(centerFrame, text='Username:', background='#434343', foreground='white').grid(row=0,column=0, sticky="W")
-
         ttk.Label(centerFrame, text=self.parent.client.getUserName(), background='white').grid(row=1, column=0, sticky="WE")
 
+        # Display the encryption type combobox for user to see and modify their preferred encryption method
         ttk.Label(centerFrame, text='Encryption Type', background='#434343', foreground='white').grid(row=2,column=0, sticky="W")
         self.etypeVar = StringVar()
         # Create a combobox for user to select their encryption type
@@ -607,7 +630,7 @@ class PreferencesMenu:
         # Retrieve saved encryption type and display as default value
         encryptionPreference = self.parent.client.getPreference('eType')
         self.etype.current(encryptionPreference)
-        # Bind combobox selected event to updatecombobox function
+        # Bind tkinter 'combobox selected' event to updatecombobox function
         self.etype.bind('<<ComboboxSelected>>', self.updateComboBox)
         self.etype.grid(row=3, column=0, sticky="WE")
 
@@ -626,52 +649,41 @@ class PreferencesMenu:
 
         self.headerFrame = headerFrame
 
-    def updateUserName(self, args=None):
-        newName = self.userName.get()
-        if len(newName) < 3 or len(newName) > 16:
-            print('Invalid Username')
-            self.parent.createPopUp(ErrorPopUp, 'Invalid User Name')
-            return None
-        self.parent.client.updateUserName(newName)
-        return None
-
-    def validateInsert(self, action, newText):
-        # Limit the number of characters a user can insert to 16
-        if action == '1':
-            if len(newText) > 16:
-                return False
-            else:
-                return True
-        return True
-
     def updateComboBox(self, args):
+        # Change encryption algorithm preference based on user's selection
         self.parent.client.updatePreference(eType=self.etype.current())
         return None
 
     def updateCheckBox(self):
+        # Change 'new chat pop ups' preference
         self.parent.client.updatePreference(doPopups=self.doPopups.get())
         return None
 
     def gotoMainMenu(self):
+        # Switch from preference menu to main menu
         self.parent.switchFrame(MainMenu, None)
 # =========================================================================================================================================================================================
 
 # ================================================================================== New Chat Popup Menu ==================================================================================
 class ReceivedMessagePopUp:
+    # This class creates a pop up on the screen to inform the user that they have
+    # received a message from a user that they do not have a stored chat with.
     def __init__(self, parent, position, args=None):
-        self.parent = parent
-        self.args = args
+        self.parent = parent # Reference to parent (interface manager)
+        self.args = args # Args, used to pass sender's username, IP, and message
 
+        # Create popup
         self.popUp = Toplevel(self.parent.root)
         self.popUp.geometry(position)
 
         self.mainframe = None
         self.popUp.transient(self.parent.root)
-        self.popUp.protocol("WM_DELETE_WINDOW", self.closePopUp)
+        self.popUp.protocol("WM_DELETE_WINDOW", self.closePopUp) # Code executed when pop up is closed
 
         self.gotoMainPopUp()
 
     def gotoMainPopUp(self):
+        # Initialize mainframe => Frame that the popup will be displayed on
         if self.mainframe is not None:
             self.mainframe.destroy()
         self.mainframe = ttk.Frame(self.popUp, style='BG.TFrame')
@@ -699,46 +711,54 @@ class ReceivedMessagePopUp:
         Button(self.mainframe, text='Block IP', command=self.blockIP).grid(row=2, column=2)
 
     def gotoCreateChat(self):
+        # Reinitialize mainframe to display the create chat option
         self.mainframe.destroy()
         self.mainframe = ttk.Frame(self.popUp, style='BG.TFrame')
         self.mainframe.grid()
 
+        # Create chat name entry field
         Label(self.mainframe, text='Chat name: ', background='#434343', foreground='white').grid(row=1, column=0)
 
-        self.cName = StringVar()
+        self.cName = StringVar() # Variable to hold entered chat name
         name = ttk.Entry(self.mainframe, textvariable=self.cName)
         name.grid(row=1, column=1, columnspan=2)
-        name.insert(0, self.args[2])
+        name.insert(0, self.args[2]) # Suggest chat name to be sender's username
 
+        # Control buttons to go back to main pop up menu or to create new chat
         Button(self.mainframe, text='Create', command=self.createChat).grid(row=1, column=3)
         Button(self.mainframe, text='Back', command=self.gotoMainPopUp).grid(row=0, column=0, sticky='w')
 
     def createChat(self):
-        db = self.parent.db
-        print(f'Creating Chat: {self.cName.get()}, IP: {self.args[0]}')
-        db.create_chat(self.cName.get(), self.args[0])
+        # Store new chat in database and close pop up
+        db = self.parent.db ''' ================================================================================================================================================================================================================='''
+        db.create_chat(self.cName.get(), self.args[0]) ''' ========================================================= Error ====================================================================='''
         db.store_received_message(self.cName.get(), self.args[1])
-        if type(self.parent.current_menu) == MainMenu:
-            self.parent.switchFrame(MainMenu, None)
+        if type(self.parent.current_menu) == MainMenu: # If current menu is main menu
+            self.parent.switchFrame(MainMenu, None) # Re-initialize main menu to show new chat
         self.closePopUp()
 
     def blockIP(self):
+        # Not implemented yet
         self.closePopUp()
 
     def closePopUp(self):
+        # Close pop up
         self.parent.closePopUp(self)
         self.popUp.destroy()
 # =========================================================================================================================================================================================
 
 # =================================================================================== Error Popup Menu ====================================================================================
 class ErrorPopUp:
+    # This class creates a pop up on the screen to display an error message
+    # to the user
     def __init__(self, parent, position, args=None):
-        self.parent = parent
-        if args is not None:
+        self.parent = parent # Reference to parent (interface manager)
+        if args is not None: # 'args' is used to pass error message
             self.errormsg = args
         else:
             self.errormsg = ''
 
+        # Create popup
         self.popUp = Toplevel(self.parent.root)
         self.popUp.geometry(position)
         self.popUp.resizable(False, False)
@@ -746,17 +766,18 @@ class ErrorPopUp:
 
         self.mainframe = None
         self.popUp.transient(self.parent.root)
-        self.popUp.protocol("WM_DELETE_WINDOW", self.closePopUp)
+        self.popUp.protocol("WM_DELETE_WINDOW", self.closePopUp) # Code executed when pop up is closed
 
         self.gotoMainPopUp()
 
     def gotoMainPopUp(self):
+        # Initialize mainframe => Frame that the popup will be displayed on
         if self.mainframe is not None:
             self.mainframe.destroy()
         self.mainframe = ttk.Frame(self.popUp, style='error.TFrame')
         self.mainframe.grid()
 
-
+        # Configure main frame rows and columns
         self.mainframe.rowconfigure(0, weight=1)
         self.mainframe.rowconfigure(1, weight=0)
         self.mainframe.rowconfigure(2, weight=1)
@@ -764,12 +785,15 @@ class ErrorPopUp:
         self.mainframe.columnconfigure(1,weight=0)
         self.mainframe.columnconfigure(2,weight=1)
 
+        # Display error label and message
         Label(self.mainframe, text="Error", background='red', foreground='white').grid(row=0, column=0, sticky="w")
         Label(self.mainframe, text=self.errormsg, background='red', foreground='white').grid(row=1, column=0, sticky="w")
 
+        # OK button to close pop up
         Button(self.mainframe, text='OK', command=self.closePopUp).grid(row=2, column=2, sticky='e')
 
     def closePopUp(self):
+        # Close pop up
         self.parent.closePopUp(self)
         self.popUp.destroy()
 # =========================================================================================================================================================================================
@@ -778,17 +802,20 @@ class ErrorPopUp:
 class UI:
     def __init__(self, root):
         self.root = root
+        # Create window
         root.title("Secure Messenger")
         root.geometry('600x700')
         root.resizable(False, False)
         root.option_add( "*font", "Arial 14" )
 
+        # Configure root rows and columns
         root.columnconfigure(0,weight=1)
         root.rowconfigure(0,weight=1)
 
+        # Frame that the current menu is displayed on
         self.display = self.createMainFrame()
 
-        self.popUps = []
+        self.popUps = [] # List of pop ups to be displayed
 
         # Connect to database 
         self.db = DataBase()
@@ -796,39 +823,38 @@ class UI:
         # Connect to server
         self.client = Client(self.onReceiveMessage)
 
-        if self.client.getUserName() == '':
+        # Open create account menu or main menu
+        if self.client.getUserName() == '': # If no username => Create account
             self.current_menu = CreateAccountMenu(self)
-        else:
+        else: # Otherwise => Main menu
             self.current_menu = MainMenu(self)
 
+        # If not connected to server, create error message
         if not self.client.connected:
             self.createPopUp(ErrorPopUp, 'Failed to connect to server')
-        #self.current_menu = MainMenu(self) # Create and display main menu
 
-        #self.client = Client(self.onReceiveMessage)
+        root.protocol("WM_DELETE_WINDOW", self.closeApp) # Code executed when application is closed
 
-        root.protocol("WM_DELETE_WINDOW", self.closeApp)
+        self.buffer = [] # Buffer to store received messages
 
-        self.buffer = []
-
-        self.update_UI()
-
-    def openMainMenu(self):
-        return None
+        self.update_UI() # Start update loop
 
     def closeApp(self):
+        # Discontinue execution gracefully when user closes app
         self.client.disconnect()
         self.db.disconnect()
         self.root.destroy() 
 
     def switchFrame(self, newFrame, args):
-        self.display.destroy()
-        self.display = self.createMainFrame()
-        self.update_UI()
+        # Switch from one menu to another
+        self.display.destroy() # Destroy current menu
+        self.display = self.createMainFrame() # Re-initialize main frame
+        self.update_UI() # Update UI
         self.current_menu = newFrame(self, args)
         return None
 
     def createMainFrame(self):
+        # Create the main frame that each menu will be displayed on
         mainframe = ttk.Frame(self.root, width=600, height=700, style='BG.TFrame')
         mainframe.grid(column=0, row=0, sticky='nwes')
         mainframe.columnconfigure(0, weight=1)
@@ -847,7 +873,7 @@ class UI:
         ''' Determines how the UI responds to received messages
 
             This method is invoked by the receiving thread (self.receivingThread), defined
-            in Client.py
+            in Client.py. Stores message in buffer to be handled
         '''
         print('received message: {}'.format(message))
         self.buffer.append(message)
@@ -855,45 +881,48 @@ class UI:
     def handleMessage(self, message):
         ''' Determines how the UI responds to received messages
 
-            This method is invoked by the receiving thread (self.receivingThread), defined
-            in Client.py
+            This method is invoked by self.update_UI to handle a received message
         '''
+        # Read message
         messageFields = self.client.readMessage(message)
         IP = messageFields[0]
+        # Get associated chat from database
         chat = self.db.get_chat_by_ip(IP)
-        print(chat)
-        if chat is not None:
+        if chat is not None: # If chat exists
             # Add message to chat
-            print("chat exists")
             self.db.store_received_message(chat[3], messageFields[1])
             if type(self.current_menu) == ChatMenu:
                 self.current_menu.displayMessages()
-        else:
-            print("chat does not exist")
-            # Create popup
+        else: # If chat does not exist
+            # Create a new chat pop up
             doPopup = self.client.getPreference('popups')
-            if doPopup == 'True':
+            if doPopup == 'True': # Only make pop up if client allows
                 self.createPopUp(ReceivedMessagePopUp, messageFields)
 
     def update_UI(self):
         count = 0
         for p in self.popUps:
+            # Used to handle received message events
             if type(p) == ReceivedMessagePopUp:
                 count += 1
-        
+
+        # Received message event. Can only execute if a received message pop up
+        # is not currently active (to prevent multiple pop ups from opening at
+        # the same time
         if len(self.buffer) != 0 and count == 0:
-            message = self.buffer.pop()
-            self.handleMessage(message)
-        self.display.after(1000, self.update_UI)
+            message = self.buffer.pop() # remove message from buffer
+            self.handleMessage(message) # handle message
+        self.display.after(1000, self.update_UI) # update UI again in 1000 ms
         return None
 
     def createPopUp(self, popUpClass, message):
-        print('create popup')
-        position = self.root.geometry()[7:]
-        self.popUps.append(popUpClass(self, position, message))
+        # Create specified pop up
+        position = self.root.geometry()[7:] # Position pop up in top left of screen
+        self.popUps.append(popUpClass(self, position, message)) # Append pop up to list to be displayed one at a time
         return None
 
     def closePopUp(self, popUp):
+        # Remove pop up from pop up list
         try:
             self.popUps.remove(popUp)
         except Exception:

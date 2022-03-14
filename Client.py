@@ -6,63 +6,72 @@ import traceback
 import json
 import random
 
-serverName = "54.144.253.235"
-#serverName = "127.0.0.1"
+serverName = "54.144.253.235" # IP address of AWS t2.micro instance running the server script
+#serverName = "127.0.0.1" # Used to test locally
 serverPort = 12000
 
 # ================================================= Client Class =================================================
 class Client:
+    # This class servers as an interface to the client module's functionality. 
     def __init__(self, rThreadCallback=None):
-        self.profile = read_user_profile()
+        self.profile = read_user_profile() # Get user preferences from JSON file
 
-        server_connection = connectToServer()
-        self.rThread = None
+        # Intialize client 
+        server_connection = connectToServer() # Attempt to connect to server
+        self.rThread = None  
         self.connected = False
-        if server_connection is not None:
+        if server_connection is not None: # connectToServer() succeeded
             self.connected = True
-            self.soc, self.sessionKey = server_connection
-            self.rThread = create_receiving_thread(self.soc, self.sessionKey, rThreadCallback)
-            self.connected = True
-        else:
+            self.soc, self.sessionKey = server_connection # Store client socket and session key
+            self.rThread = create_receiving_thread(self.soc, self.sessionKey, rThreadCallback) # Create receiving thread
+        else: # connectToServer() failed
             self.soc = None
             self.sessionKey = None
 
+        # References to implemented encryption algorithms in cipher.py
         self.encryptionTypes = {'plaintext': 0, 'ROT13': 1, 'vigenere': 2, 'AES': 3, 'RSA': 4, 'Fernet': 5}
 
     def sendMessage(self, message, IP, etype, eKey, publicKey):
-        if self.soc is None:
+        # Send message to server to be forwarded to destination 'IP'
+        if self.soc is None: # Cannot send message if socket is None
             return False
-        uName = self.profile['uName']
-        sendSuccess = sendMessageTo(self.soc, message, IP, uName, etype, eKey, publicKey, self.sessionKey)
-        time.sleep(.25)
-        recvAck = self.rThread.status.ACK
-        status = sendSuccess and recvAck
-        self.rThread.status.ACK = False
-        print(f'Message Sent to Server: {sendSuccess}, Received ACK: {recvAck}')
-        return status
+        uName = self.profile['uName'] # Get username to identify self to receiver
+        sendSuccess = sendMessageTo(self.soc, message, IP, uName, etype, eKey, publicKey, self.sessionKey) # Send message to server
+        time.sleep(.25) # Wait for ACK
+        recvAck = self.rThread.status.ACK # Read ACK from receiving thread
+        status = sendSuccess and recvAck # If successful send and received ACK from server
+        self.rThread.status.ACK = False # Reset ACK for next message
+        return status # Report success
 
     def getPublicKey(self, receiverName, receiverIP):
+        # Query a user's public key from the server using their username
         sendSuccess = getPublicKeyFromServer(self.soc, self.sessionKey, receiverName, receiverIP)
 
-        self.rThread.status.ACK = None
-        time.sleep(1)
-        pubkeybytes = self.rThread.status.ACK
-        self.rThread.status.ACK = False
+        # Initialize ACK with none, if the receiving thread receives the public key from the server
+        # it will store the key in ACK for us to read here
+        self.rThread.status.ACK = None 
+        time.sleep(1) # Wait for ACK
+        pubkeybytes = self.rThread.status.ACK # If public key was received, store in pubkeybytes
+        self.rThread.status.ACK = False # Reset ACK for next message
         return pubkeybytes
 
     def readMessage(self, message):
         return message
 
     def createAccount(self, username, password):
-        if self.soc is None:
+        # Negotiate with server to create a user account
+        if self.soc is None: # Cannot create account if no server connection
             return None
+
+        # Send username and password to server
         sendSuccess = createUserAccount(self.soc, self.sessionKey, username, password)
 
-        time.sleep(2)
+        time.sleep(2) # Wait for ACK
         recvAck = self.rThread.status.ACK
-        status = sendSuccess and recvAck
-        self.rThread.status.ACK = False
-        
+        status = sendSuccess and recvAck # Successful account creation if message sent successfully and received ACK from server
+        self.rThread.status.ACK = False # Reset ACK for next message
+
+        # If account creation was successful, store username
         if status:
             self.updateUserName(username)
         return status
@@ -84,80 +93,86 @@ class Client:
         return None
 
     def updatePreference(self, uName=None, doPopups=None, eType=None):
+        # Used to update a value in the user's JSON profile file
         update_profile(self.profile, uName=uName, popUps=doPopups, eType=eType)
 
     def disconnect(self):
-        if self.rThread is not None:
+        # Disconnect from the server
+        if self.rThread is not None: # Close receiving thread
             self.rThread.close()
-        if self.soc is not None:
+        if self.soc is not None: # Close socket
             disconnectServer(self.soc, self.sessionKey)
 # ================================================================================================================
 
 # =============================================== Receiving Thread ===============================================
 class RThreadStatus:
+    # This class is used to communicate with the receiving thread. It is passed as
+    # an argument to the receiving thread target and can terminate the receiving thread with
+    # the terminate variable, and the receiving thread can pass server responses through the
+    # ACK variable
     def __init__(self):
         self.terminate = False
         self.ACK = False
 
 class ReceivingThread:
+    # This class is used to manage the receiving thread and its status
     def __init__(self, t, s):
-        self.thread = t
-        self.status = s
+        self.thread = t # Receiving thread
+        self.status = s # Thread status
 
     def close(self):
-        self.status.terminate = True
-        self.thread.join()
+        self.status.terminate = True # Stop the receiving thread loop
+        self.thread.join() # Join thread
 
 def receiving_thread(conn, bufferSize, status, sessionKey, rCallback=None):
-    print('Receiving Thread running')
-    conn.settimeout(1)
-    while not status.terminate:
+    # Receiving thread target
+    conn.settimeout(1) # Timeout after 1 second
+    while not status.terminate: # Loop until terminate
         try:
-            packet = conn.recv(bufferSize)
+            packet = conn.recv(bufferSize) # Receive packet from server
         except timeout:
             continue
 
         # Decrypt packet and separate the values
         fields = unPack(packet, sessionKey)
-        if fields is None:
-            print("Fields is none")
+        if fields is None: # Received invalid packet
             continue
         if len(fields) != 6:
-            print('Invalid message')
             # Check for ACK from server
-            if fields[0] == b'50':
-                print("ACK")
+            if fields[0] == b'50': # Message ACK
                 status.ACK = True
-            if fields[0] == b'20':
-                print("received key")
-                #print(fields[1])
-                status.ACK = fields[1]
+            if fields[0] == b'20': # Received a public key from server
+                status.ACK = fields[1] # Pass to Client class through status.ACK (fields[1] holds key)
             continue
-        
-        senderName = fields[0].decode()
-        ip = fields[1].decode()
-        encryptionType = fields[2].decode()
 
-        IV = fields[3]
-        Key = fields[4]
-        encMessage = fields[5]
+        # If the previous if statements did not execute, then a valid message was received. Extract
+        # relevant information and pass to UI for handling
+        senderName = fields[0].decode() # Username of sender
+        ip = fields[1].decode() # IP address of sender
+        encryptionType = fields[2].decode() # Type of encryption used on the message
 
-        message = stripEnc(encryptionType, IV, Key, encMessage)
+        IV = fields[3] # Initialization vector (If sender encrypted with AES, otherwise unused)
+        Key = fields[4] # Key used to encrypt message. The key itself is encrypted with receivers public key
+        encMessage = fields[5] # Encrypted message
+
+        message = stripEnc(encryptionType, IV, Key, encMessage) # Decrypt the message
         
         if rCallback is not None:
-            rCallback((ip, message, senderName))
+            rCallback((ip, message, senderName)) # Pass message to UI
         else:
-            print(message.decode())
-    print('receiving thread exit')
+            print(message)
     return None
 # ================================================================================================================
 
 # =============================================== Helper Functions ===============================================
 def get_ip():
+    # Get client's IP address to send to host. This is needed because actual host IP and socket address
+    # received by server may differ due to NAT. This allows hosts to identify each other using IP address 
     hostname = gethostname()
     return gethostbyname(hostname)
 
 def create_profile(f):
+    # Create json profile to store username and preferences
     userID = -1
     ip = get_ip()
     prof = {"uName": '',
@@ -168,6 +183,7 @@ def create_profile(f):
     return prof
 
 def update_profile(profile, uName=None, popUps=None, eType=None):
+    # Update specific value of the user profile
     if uName is not None:
         profile['uName'] = uName
     if popUps is not None:
@@ -190,6 +206,8 @@ def read_user_profile():
         return data
 
 def create_receiving_thread(cSock, sessionKey, callback=None):
+    # Helper function to create and start the receiving thread. Returns a
+    # ReceivingThread class instance
     status = RThreadStatus()
     rThread = None
     try:
@@ -204,33 +222,45 @@ def create_receiving_thread(cSock, sessionKey, callback=None):
     return ReceivingThread(rThread, status)
 
 def stripEnc(encryptionType, IV, encKey, encMessage):
-    privKey = RSA_load_private_key()
+    ''' (string, bytes, bytes, bytes) -> string
 
+        Decrypts 'encMessage' based on encryption type
+    '''
+    privKey = RSA_load_private_key() # Load private key from file
     
-    
-    if encryptionType == '0':
-        return encMessage.decode()
+    if encryptionType == '0': # Encrypted message is plaintext
+        return encMessage.decode() # Convert bytes to string
 
-    elif encryptionType == '1':
+    elif encryptionType == '1': # Encrypted with ROT13
         message = rot13_decrypt(encMessage.decode())
 
-    elif encryptionType == '2':
+    elif encryptionType == '2': # Encrypted with Vigenere
         message = vig_decrypt(encMessage.decode())
 
-    elif encryptionType == '3':
+    elif encryptionType == '3': # Encrypted with AES
+        # Decrypt the AES encryption key with own private key
         key = RSA_private_key_decrypt(encKey, privKey)
+        # Decrypt the message with AES key
         message = AES_decrypt(encMessage, IV, key).decode()
 
-    elif encryptionType == '4':
+    elif encryptionType == '4': # Encrypted with RSA
         message = RSA_private_key_decrypt(encMessage, privKey).decode()
 
-    elif encryptionType == '5':
+    elif encryptionType == '5': # Encrypted with Fernet
+        # Decrypt the Fernet encryption key with own private key
         key = RSA_private_key_decrypt(encKey, privKey)
+        # Decrypt the message with Fernet key
         message = Fernet_decrypt(encMessage, key)
     
     return message
 
 def connectToServer():
+    ''' () -> (socket, bytes)
+        () -> None
+
+        Connects to the server and establishes session key. Returns appropriate
+        socket and session key on success and returns None on failure. 
+    '''
     print('Connecting to server ... ', end='')
     # Create client socket
     clientSocket = socket(AF_INET, SOCK_STREAM)
@@ -257,7 +287,8 @@ def connectToServer():
     handshakeMessage = f"100\r\n{IP}\r\n".encode() + pubkeyBytes + b'\r\n0'
 
     signature = RSA_sign(handshakeMessage, privateKey)
-    
+
+    # Send handshake and signature for verification
     handshake1 = handshakeMessage + b'\r\n' + signature
 
     clientSocket.settimeout(3)
@@ -271,7 +302,7 @@ def connectToServer():
         fields = handshake2.split(b'\r\n')
 
         if len(fields) != 4:
-            print('invalid response')
+            print('Invalid Server Response')
             return None
 
         # Convert server public key from bytes to public key object
@@ -285,7 +316,7 @@ def connectToServer():
 
         # Verify the message using the signature
         if not RSA_verify(signature, message, serverPubKey):
-            print("Invalid siganture")
+            print("Invalid signature")
             return None
 
         # Create AES session key
@@ -324,12 +355,12 @@ def unPack(message, sessionKey):
 
 def sendMessageTo(soc, message, destination, uName, encryptionType, encryptionKey, publicKey, sessionKey):
     # Encrypt message
-    iv = b'0'
+    iv = b'0' # Default value for IV if AES is not used
 
     publicKey = RSA_get_key_from_bytes(publicKey)
     
     if encryptionType == 0: # Plaintext
-        encMessage = message.encode()
+        encMessage = message.encode() # Convert to bytes for transmission
         encKey = b'0'
 
     elif encryptionType == 1: # ROT13
@@ -354,9 +385,8 @@ def sendMessageTo(soc, message, destination, uName, encryptionType, encryptionKe
         encKey = RSA_public_key_encrypt(encryptionKey, publicKey)
 
     # Create Packet
-    #packet = f'200\r\n{destination}\r\n{uName}\r\n{encryptionType}\r\n{message}'
     packet = f'200\r\n{destination}\r\n{uName}\r\n{encryptionType}'.encode() + b'\r\n' + iv + b'\r\n' + encKey + b'\r\n' + encMessage
-    print(packet)
+
     # Encrypt packet with client/server session key
     packet_enc, iv = AES_encrypt(packet, sessionKey)
 
@@ -374,9 +404,9 @@ def sendMessageTo(soc, message, destination, uName, encryptionType, encryptionKe
 
 def createUserAccount(soc, sessionKey, username, password):
     # Create hash of password
-    hashedPass = hashPassword(password)
+    hashedPass = hashPassword(password) # Create password hash to send to server
 
-    # Sequence number
+    # Sequence number. Not really used in this implementation. Future updates will use to prevent replay attack
     seq = random.randint(0, (2**32) - 1)
     
     # Create packet with username and hash password
@@ -392,16 +422,16 @@ def createUserAccount(soc, sessionKey, username, password):
     try:
         soc.send(new_packet)
     except timeout:
-        print("Failed to send message")
-        return False
+        return False # Send failure
     soc.settimeout(1)
-    # If server accept, return status OK
+    # If no failure, return send success
     return True
 
 def getPublicKeyFromServer(soc, sessionKey, receiverName, receiverIP):
     # Create packet
     packet = b'20\r\n' + f"{receiverName}\r\n{receiverIP}".encode() + b'\r\n0\r\n0'
-    # Encrypt packet
+
+    # Encrypt packet with client session key
     packet_enc, iv = AES_encrypt(packet, sessionKey)
 
     new_packet = iv + b'\r\n' + packet_enc
@@ -411,7 +441,6 @@ def getPublicKeyFromServer(soc, sessionKey, receiverName, receiverIP):
     try:
         soc.send(new_packet)
     except timeout:
-        print("Failed to send message")
         return False
     soc.settimeout(1)
     return True
@@ -430,53 +459,4 @@ def disconnectServer(soc, sessionKey):
     except Exception:
         pass
     return None
-# ================================================================================================================
-
-# ===================================================== Main =====================================================
-
-def test():
-    while True:
-        function = input('>>>> ')
-
-        if function == '0':
-            IP = input('Receiver IP Address: ')
-            message = input('Message: ')
-            sendMessageTo(message, None, None, None)
-        elif function == '1':
-            time.sleep(5)
-        else:
-            return None
-def main():
-    #print('Connecting to server... ', end="")
-    test()
-    cSock = connectToServer()
-    if cSock is not None:
-        print('Success')
-        rThread = create_receiving_thread(cSock)
-        time.sleep(2)
-        if rThread is None:
-            return None
-        print('Send message: 0, Receive message: 1')
-        while True:
-            function = input('>>>> ')
-
-            if function == '0':
-                IP = input('Receiver IP Address: ')
-                message = input('Message: ')
-                sendMessageTo(message, None, None, None)
-            elif function == '1':
-                time.sleep(5)
-            else:
-                time.sleep(1)
-                rThread.status.terminate = True
-                time.sleep(1)
-                rThread.thread.join()
-                disconnectServer(cSock)
-                return None
-    else:
-        print('Connection failed')
-    return None
-
-if __name__ == "__main__":
-    main()
 # ================================================================================================================
