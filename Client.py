@@ -1,3 +1,12 @@
+'''
+    Secure Messenger Application Client
+
+    Authors: Hans Prieto, Joshua Fawcett
+
+    This module implements all necessary functions to communicate with the server
+    in order to create an account and send messages to other users. 
+'''
+
 from socket import *
 from threading import Thread
 from cipher import *

@@ -1,3 +1,13 @@
+'''
+    Secure Messenger Application Server
+
+    Authors: Hans Prieto, Joshua Fawcett
+
+    This module implements the server side of the application. It provides functionality such as
+    user account creation and message forwarding (sending a message from one client to another). This
+    module was designed to run on an AWS t2.micro instance to provide continuous service to clients
+    and allow for NAT traversal between two hosts that may be hidden behind NAT. 
+'''
 import sys
 from cipher import *
 from socket import *
@@ -13,7 +23,7 @@ serverSocket.bind(('', serverPort))
 
 serverSocket.listen(1)
 
-# Load from file (or create) server RSA keys
+# Load from file (or create) server RSA keys (Implemented in cipher.py)
 PUBLICKEY, PRIVATEKEY = RSA_get_keys()
 
 # ================================================================================================================
@@ -30,28 +40,29 @@ def unpackMessage(message, sessionKey):
     '''
     try:
         if len(message) > 0:
-            fields = message.split(b'\r\n')
+            fields = message.split(b'\r\n') # Split message into IV and ciphertext
             if len(fields) != 2:
                 return None
-            iv = fields[0]
-            ct = fields[1]
+            iv = fields[0] # Initialization vector for AES decryption
+            ct = fields[1] # Cipher text to be decrypted
 
-            pt = AES_decrypt(ct, iv, sessionKey)
+            pt = AES_decrypt(ct, iv, sessionKey) # Decrypt
         else:
             return None
     except timeout:
         return None
 
-    fields = pt.split(b'\r\n')
+    fields = pt.split(b'\r\n') # Split plaintext into header fields
 
+    # Valid messages have either 5 or 7 fields
     if len(fields) != 5 and len(fields) != 7:
         print('Error in unpackMessage: invalid field size')
-        print(fields)
         return None
 
     return fields
 
 def getTimeStamp():
+    # Readable timestamp for logging purposes
     t = datetime.now()
     year = t.year
     month = t.month
@@ -159,7 +170,7 @@ def receivingThread(client, bufferSize, rThreadInstance):
     connection = client.socket
     address = client.address
 
-    receiving_client_key = client.sessionKey
+    client_session_key = client.sessionKey
 
     connection.settimeout(2)
     while not rThreadInstance.status.terminate:
@@ -173,7 +184,7 @@ def receivingThread(client, bufferSize, rThreadInstance):
             continue
 
         # Decrypt with client's session key and split header fields
-        fields = unpackMessage(packet, receiving_client_key)
+        fields = unpackMessage(packet, client_session_key)
         if fields is None:
             continue
 
@@ -189,22 +200,22 @@ def receivingThread(client, bufferSize, rThreadInstance):
             pubkeybytes = RSA_get_bytes_from_key(client.publicKey)
             success = db.addUser(username, IP, pubkeybytes, hashedPass)
             if success:
-                connection.send(b'50')
+                connection.send(b'50') # Successful account creation code
             else:
-                connection.send(b'55')
+                connection.send(b'55') # Account creation failure code
             db.disconnect()
             continue
-        elif fields[0] == b'20':
-            username = fields[1]
-            IP = fields[2]
+        elif fields[0] == b'20': # Get a user's public key
+            username = fields[1] # Username of desired user's public key
+            IP = fields[2] # IP address of desired user's public key
 
+            # Access user database to check for public key
             db = UserDataBase()
             pubkeybytes = db.getUserPublicKey(username.decode())
-            if pubkeybytes is not None:
-                # Send pub key
-                print("sending public key")
+            if pubkeybytes is not None: # User exists and public key is ready to send
+                # Send public key
                 connection.send(b'20\r\n' + pubkeybytes + b'\r\n0')
-            db.disconnect()
+            db.disconnect() # Disconnect from database
             continue
 
         # Extract info from fields
@@ -365,7 +376,6 @@ class Server:
 
 # ===================================================== Main =====================================================
 def startServer():
-
     print('Server is ready')
     s = Server(serverSocket)
     s.run()

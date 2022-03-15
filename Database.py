@@ -1,3 +1,15 @@
+'''
+    Secure Messenger Application Message Database Module
+
+    Authors: Hans Prieto, Joshua Fawcett
+
+    The message database module is used to store and retrieve chat information and sent/received
+    messages on a local (client-side) database file. 
+
+    Sources:
+            sqlite3: https://docs.python.org/3/library/sqlite3.html
+'''
+
 import sqlite3
 import random
 import string

@@ -1,3 +1,12 @@
+'''
+    Secure Messenger Application User Database
+
+    Authors: Hans Prieto, Joshua Fawcett
+
+    The user database is used to store and retrieve user account information on a local
+    (server side) database file. 
+'''
+
 import sqlite3
 
 # ================================================================================================================

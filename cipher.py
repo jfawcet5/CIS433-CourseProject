@@ -1,5 +1,13 @@
 '''
+    Secure Messenger Application Cipher Module
 
+    Authors: Hans Prieto, Joshua Fawcett
+
+    This module implements all of the encryption algorithms used by the secure
+    messenger application. Note: A lot of the code for some of the algorithms (such
+    as Fernet, AES, and RSA) comes from documentation and examples on the cryptography
+    module website. 
+    
     Sources:
             Cryptography module: https://cryptography.io/en/latest/
 '''
