@@ -730,8 +730,8 @@ class ReceivedMessagePopUp:
 
     def createChat(self):
         # Store new chat in database and close pop up
-        db = self.parent.db ''' ================================================================================================================================================================================================================='''
-        db.create_chat(self.cName.get(), self.args[0]) ''' ========================================================= Error ====================================================================='''
+        db = self.parent.db 
+        db.create_chat(self.cName.get(), self.args[0])
         db.store_received_message(self.cName.get(), self.args[1])
         if type(self.parent.current_menu) == MainMenu: # If current menu is main menu
             self.parent.switchFrame(MainMenu, None) # Re-initialize main menu to show new chat
