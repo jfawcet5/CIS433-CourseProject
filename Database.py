@@ -273,17 +273,21 @@ def create_chat(cur, chat_name, receiverIP, receiverName, keys):
 
 # deletes a chat
 def delete_chat(cur, chat_name):
+    # select chat name from table
     cur.execute('''SELECT count(name) FROM sqlite_master WHERE type='table'
                    AND name=?
                 ''', (chat_name,))
+    
+    # delete table associated with chat name
     if cur.fetchone()[0] != 0:
         print(f"Deleting table {chat_name}")
         command = f'''DROP TABLE "{chat_name}"'''
         cur.execute(command)
     else:
-        print(f"Table {chat_name} does not exist")
+        print(f"Table {chat_name} does not exist")  # case where table does not exist
         return 0
 
+    # deletes the chat from the chats table
     cur.execute(''' DELETE 
                     FROM chats
                     WHERE chatName=?
@@ -293,31 +297,34 @@ def delete_chat(cur, chat_name):
 
 # renames a chat
 def rename_chat(cur, prev_chat_name, new_chat_name):
+    # determine if chat name is valid or not
     if not is_valid_chatname(new_chat_name):
         return 1
 
+    # determine if the previous chat name is in the chats table or not
     cur.execute(''' SELECT *
                     FROM chats
                     WHERE chatName=?
                 ''', (prev_chat_name,)
                 )
     prev_chat_name_row = cur.fetchone()
-    if prev_chat_name_row == None:
+    if prev_chat_name_row == None:  # if previous chat name not in table, then error
         return 2
 
+    # check if the new chat name is in the chats table or not
     cur.execute(''' SELECT *
                     FROM chats
                     WHERE chatName=?
                 ''', (new_chat_name,)
                 )
     new_chat_name_row = cur.fetchone()
-    if new_chat_name_row != None:
+    if new_chat_name_row != None:   # if new chat name already in table, then error
         return 3
 
     cur.execute('''SELECT count(name) FROM sqlite_master WHERE type='table'
                    AND name=?
                 ''', (prev_chat_name,))
-    if cur.fetchone()[0] != 0:
+    if cur.fetchone()[0] != 0:  # renames the chat by renaming the table associated with the previous chat name
         print(f"renaming table {prev_chat_name} to {new_chat_name}")
         command = f'''ALTER TABLE "{prev_chat_name}" RENAME TO "{new_chat_name}"'''
         cur.execute(command)
@@ -331,15 +338,16 @@ def rename_chat(cur, prev_chat_name, new_chat_name):
                     WHERE chatNum=?
                 ''', (new_chat_name, cur_chatNum)
                 )
-    return 0
+    return 0    # success in renaming chat
 
 # changes the IP Address for a chat
 def change_ip_address(cur, cur_chat_name, new_ip_address):
-    if not is_valid_chatname(cur_chat_name):
+    if not is_valid_chatname(cur_chat_name):    # determine if chatname is valid or not
         return 1
-    elif not is_valid_ip(new_ip_address):
+    elif not is_valid_ip(new_ip_address):   # determine if IP address is valid or not
         return 2
     
+    # select chatname from chats table
     cur.execute(''' SELECT *
                     FROM chats
                     WHERE chatName=?
@@ -352,13 +360,14 @@ def change_ip_address(cur, cur_chat_name, new_ip_address):
 
     cur_chatNum = row[0]
 
+    # update the chats table with the IP address associated with the proper chat name
     cur.execute(''' UPDATE chats
                     SET receiverIP=? 
                     WHERE chatNum=?
                 ''', (new_ip_address, cur_chatNum)
                 )
 
-    return 0
+    return 0    # success in updating IP address
 
 def create_message_table(cur, chat_name):
     # Create a message table to store all of the messages for the

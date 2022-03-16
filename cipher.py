@@ -24,41 +24,44 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 plain_alpha = "abcdefghijklmnopqrstuvwxyz"
 rotated_alpha = plain_alpha[13:] + plain_alpha[0:13]    # alphabet rotated 13 shifts to left
 
+# encryption method for rot13
 def rot13_encrypt(plaintext):
     result = ""
+    # iterate through plaintext message, and encrypt
     for i in range(len(plaintext)):
         cur = plaintext[i]
-        if cur != ' ':
-            if cur.isalpha() and cur.isupper():
-                cur = cur.lower()
-                pos = rotated_alpha.index(cur)
-                result +=  plain_alpha[pos].upper()
-            elif cur.isalpha() and cur.islower():
-                pos = rotated_alpha.index(cur)
-                result +=  plain_alpha[pos]
+        if cur != ' ':  # determine if current character is not a space
+            if cur.isalpha() and cur.isupper(): # determine if current character is uppercase
+                cur = cur.lower()   # convert current character to lowercase
+                pos = rotated_alpha.index(cur)  # find the position of the current character in the rotated alphabet
+                result +=  plain_alpha[pos].upper() # use position to find character in plain alphabet associated with that position, convert to uppercase
+            elif cur.isalpha() and cur.islower():   # determine if current character is lowercase
+                pos = rotated_alpha.index(cur)  # find the position of the current character in the rotated alphabet
+                result +=  plain_alpha[pos] # use position to find character in plain alphabet associated with that position
             else:
-                result += cur
+                result += cur   # if current character is not an alpha, just add it to result
         else:
-            result += cur
-    return result
+            result += cur   # if current character is a space, just add it to result
+    return result   # return result
 
 def rot13_decrypt(enc_text):
     result = ""
+    # iterated through encrypted text, and decrypt
     for i in range(len(enc_text)):
         cur = enc_text[i]
-        if cur != ' ':
-            if cur.isalpha() and cur.isupper():
-                cur = cur.lower()
-                pos = rotated_alpha.index(cur)
-                result += plain_alpha[pos].upper()
-            elif cur.isalpha() and cur.islower():
-                pos = rotated_alpha.index(cur)
-                result +=  plain_alpha[pos]
+        if cur != ' ':  # determine if current character is not a space
+            if cur.isalpha() and cur.isupper(): # determine if current character is uppercase
+                cur = cur.lower()   # convert current character to lowercase
+                pos = rotated_alpha.index(cur)  # find the position of the current character in the rotated alphabet
+                result += plain_alpha[pos].upper()  # use position to find character in plain alphabet associated with that position, convert to uppercase
+            elif cur.isalpha() and cur.islower():   # determine if current character is lowercase
+                pos = rotated_alpha.index(cur)  # find the position of the current character in the rotated alphabet
+                result +=  plain_alpha[pos] # use position to find character in plain alphabet associated with that position
             else:
-                result += cur
+                result += cur # if current character is not an alpha, just add it to result
         else:
-            result += cur
-    return result
+            result += cur   # if current character is a space, just add it to result
+    return result   # return result
 # ================================================================================================================
 
 # ==================================================== Fernet ====================================================
@@ -324,6 +327,8 @@ def RSA_decrypt(ciphert, signature, sndPub, rcvPriv):
 # ===================================================== Vigenere =================================================
 enc_key = "test"
 dec_key = enc_key
+
+# encryption method for vigenere
 def vig_encrypt(input_str):
     enc_str = ""
 
@@ -382,6 +387,7 @@ def vig_encrypt(input_str):
 
     return enc_str
 
+# decryption method for vigenere
 def vig_decrypt(input_str):
     dec_str = ""
 
